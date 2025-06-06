@@ -50,17 +50,22 @@ class SlackIntegration {
       console.log('🔄 textQueueオブジェクト:', typeof textQueue, textQueue);
       
       if (this.autoAdd) {
-        const displayText = `[${messageData.channel}] ${messageData.user}: ${messageData.text}`;
-        console.log('✅ テキストキューに追加しようとしています:', displayText);
+        // チャンネル名を削除し、ユーザー名とテキストのみを表示
+        const displayData = {
+          text: messageData.text,
+          user: messageData.user,
+          userIcon: messageData.userIcon
+        };
+        console.log('✅ テキストキューに追加しようとしています:', displayData);
         
         // textQueueが存在するかチェック
-        if (window.textQueue && typeof window.textQueue.addText === 'function') {
-          window.textQueue.addText(displayText);
+        if (window.textQueue && typeof window.textQueue.addSlackMessage === 'function') {
+          window.textQueue.addSlackMessage(displayData);
           console.log('✅ テキストキューに正常に追加されました');
           
-          // 自動再生も開始する場合は有効化（オプション）
-          if (window.textQueue.queue.length === 1 && !window.textQueue.isPlaying) {
-            console.log('🚀 キューが空だったので自動再生を開始');
+          // Slackメッセージは自動再生開始
+          if (!window.textQueue.isPlaying) {
+            console.log('🚀 Slackメッセージで自動再生を開始');
             window.textQueue.startQueue();
           }
         } else {
@@ -69,7 +74,7 @@ class SlackIntegration {
           // 代替案: 直接DOMを操作してテキストエリアに追加
           const textarea = document.getElementById('newText');
           if (textarea) {
-            textarea.value = displayText;
+            textarea.value = `${displayData.user}: ${displayData.text}`;
             console.log('🔄 代替案として入力フィールドに設定しました');
           }
         }
@@ -404,14 +409,6 @@ class SlackIntegration {
     await this.saveConfig();
   }
   
-  updateStatus(message, type) {
-    const status = document.getElementById('slackStatus');
-    status.textContent = message;
-    status.className = 'slack-status';
-    if (type) {
-      status.classList.add(type);
-    }
-  }
   
   async updateUI() {
     await this.updateChannelList();
@@ -458,6 +455,15 @@ class SlackIntegration {
       </span>`;
     }).join('');
   }
+  
+  updateStatus(message, type) {
+    const status = document.getElementById('slackStatus');
+    status.textContent = message;
+    status.className = 'slack-status';
+    if (type) {
+      status.classList.add(type);
+    }
+  }
 }
 
 class TextQueue {
@@ -477,19 +483,64 @@ class TextQueue {
       this.queue.push({
         id: Date.now(),
         text: text.trim(),
-        timestamp: new Date().toLocaleTimeString()
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'text'
       });
       this.updateUI();
     }
   }
   
+  addSlackMessage(messageData) {
+    if (messageData.text && messageData.text.trim()) {
+      const wasEmpty = this.queue.length === 0;
+      
+      this.queue.push({
+        id: Date.now(),
+        text: messageData.text.trim(),
+        user: messageData.user,
+        userIcon: messageData.userIcon,
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'slack'
+      });
+      
+      console.log('📋 Slackメッセージ追加後の状態:', {
+        queueLength: this.queue.length,
+        isPlaying: this.isPlaying,
+        wasEmpty: wasEmpty
+      });
+      
+      this.updateUI();
+      
+      // Slackメッセージの場合は自動再生開始
+      if (!this.isPlaying) {
+        console.log('🎬 Slackメッセージで自動再生を開始');
+        this.startQueue();
+      }
+    }
+  }
+  
   startQueue() {
-    if (this.queue.length === 0) return;
+    console.log('🎬 startQueue呼び出し:', {
+      queueLength: this.queue.length,
+      isPlaying: this.isPlaying,
+      currentIndex: this.currentIndex
+    });
+    
+    if (this.queue.length === 0) {
+      console.log('⚠️ キューが空のため開始できません');
+      return;
+    }
     
     this.isPlaying = true;
     if (this.currentIndex === -1) {
       this.currentIndex = 0;
     }
+    
+    console.log('▶️ 再生開始:', {
+      currentIndex: this.currentIndex,
+      currentItem: this.queue[this.currentIndex]
+    });
+    
     this.playNext();
     this.updateStatus();
   }
@@ -522,8 +573,18 @@ class TextQueue {
       return;
     }
     
-    const currentText = this.queue[this.currentIndex];
-    this.sendToDisplay(currentText.text);
+    const currentItem = this.queue[this.currentIndex];
+    if (currentItem.type === 'slack') {
+      // Slackメッセージの場合はメタデータも送信
+      this.sendToDisplay(currentItem.text, {
+        user: currentItem.user,
+        userIcon: currentItem.userIcon,
+        type: 'slack'
+      });
+    } else {
+      // 通常のテキストの場合
+      this.sendToDisplay(currentItem.text);
+    }
     this.updateUI();
     
     this.currentTimer = setTimeout(() => {
@@ -558,10 +619,14 @@ class TextQueue {
     this.fadeTime = parseFloat(fadeTimeInput.value) * 1000;
   }
   
-  sendToDisplay(text) {
+  sendToDisplay(text, metadata = null) {
     // IPCを使ってメインプロセス経由で表示ウィンドウにテキストを送信
     try {
-      ipcRenderer.send('display-text', text);
+      if (metadata) {
+        ipcRenderer.send('display-slack-message', { text, metadata });
+      } else {
+        ipcRenderer.send('display-text', text);
+      }
     } catch (error) {
       console.log('IPC error:', error);
     }

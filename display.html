@@ -47,6 +47,45 @@
       align-items: center;
     }
     
+    .slack-message {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(8px);
+      border-radius: 12px;
+      border-left: 4px solid #00d4aa;
+    }
+    
+    .slack-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    
+    .slack-content {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .slack-user {
+      font-size: 14px;
+      color: #00d4aa;
+      font-weight: 600;
+      margin-bottom: 4px;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    }
+    
+    .slack-text {
+      font-size: 20px;
+      color: white;
+      line-height: 1.4;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+    }
+    
     .text-item.fade-in {
       opacity: 0;
       transform: translateY(-20px);
@@ -132,6 +171,70 @@
       if (typeof require !== 'undefined') {
         const { ipcRenderer } = require('electron');
         ipcRenderer.send('set-always-on-top', false);
+      }
+    }
+    
+    // Slackメッセージ専用の表示関数
+    function displaySlackMessage(text, metadataJson) {
+      try {
+        const metadata = JSON.parse(metadataJson);
+        
+        // 新しいSlackメッセージ要素を作成
+        const messageItem = document.createElement('div');
+        messageItem.className = 'text-item slack-message fade-in';
+        messageItem.id = `text-${++textIdCounter}`;
+        
+        // アバター画像
+        const avatar = document.createElement('img');
+        avatar.className = 'slack-avatar';
+        avatar.src = metadata.userIcon || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="%23ccc"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">👤</text></svg>';
+        avatar.onerror = function() {
+          this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="%23ccc"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">👤</text></svg>';
+        };
+        
+        // コンテンツエリア
+        const content = document.createElement('div');
+        content.className = 'slack-content';
+        
+        // ユーザー名
+        const userDiv = document.createElement('div');
+        userDiv.className = 'slack-user';
+        userDiv.textContent = metadata.user;
+        
+        // メッセージテキスト
+        const textDiv = document.createElement('div');
+        textDiv.className = 'slack-text';
+        textDiv.textContent = text;
+        
+        content.appendChild(userDiv);
+        content.appendChild(textDiv);
+        messageItem.appendChild(avatar);
+        messageItem.appendChild(content);
+        
+        // コンテナの最上部に追加
+        textContainer.insertBefore(messageItem, textContainer.firstChild);
+        
+        // フェードインアニメーション開始
+        setTimeout(() => {
+          messageItem.classList.remove('fade-in');
+        }, 10);
+        
+        // 配列に追加
+        displayedTexts.unshift({
+          id: messageItem.id,
+          element: messageItem,
+          timestamp: Date.now()
+        });
+        
+        // 最大数を超えた場合は古いものを削除
+        while (displayedTexts.length > maxTexts) {
+          removeOldestText();
+        }
+        
+      } catch (error) {
+        console.error('Slackメッセージ表示エラー:', error);
+        // フォールバック: 通常のテキスト表示
+        addDisplayText(`${metadata?.user || 'Unknown'}: ${text}`);
       }
     }
     

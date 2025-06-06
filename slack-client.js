@@ -364,6 +364,7 @@ class SlackWatcher {
       const messageData = {
         text: slackEvent.text,
         user: userInfo.display_name || userInfo.real_name || userInfo.name,
+        userIcon: userInfo.image_48 || userInfo.image_32 || userInfo.image_24 || null,
         channel: channelInfo.name,
         timestamp: new Date(parseFloat(slackEvent.ts) * 1000),
         raw: slackEvent

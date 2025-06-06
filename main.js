@@ -179,6 +179,22 @@ ipcMain.on("set-always-on-top", (event, alwaysOnTop) => {
   }
 })
 
+// Slackメッセージ表示
+ipcMain.on("display-slack-message", (event, data) => {
+  if (mainWindow) {
+    // Slackメッセージの場合は最前面に表示
+    mainWindow.setAlwaysOnTop(true, 'screen-saver')
+    
+    const { text, metadata } = data
+    const escapedText = text.replace(/'/g, "\\'")
+    const metadataJson = JSON.stringify(metadata).replace(/'/g, "\\'")
+    
+    mainWindow.webContents.executeJavaScript(
+      `displaySlackMessage('${escapedText}', '${metadataJson}');`
+    )
+  }
+})
+
 // Slack関連のIPC
 ipcMain.handle("slack-connect", async (event, config) => {
   try {
