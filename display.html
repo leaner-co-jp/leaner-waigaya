@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Transparent Text Display</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: transparent;
+      font-family: Arial, sans-serif;
+      font-size: 24px;
+      color: white;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+      overflow: hidden;
+      -webkit-app-region: drag;
+      height: 100vh;
+      width: 100vw;
+      position: fixed;
+      top: 0;
+      left: 0;
+    }
+    
+    #text-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      height: 100%;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    
+    .text-item {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      transition: opacity 0.5s ease-in-out, transform 0.3s ease-in-out;
+      opacity: 1;
+      transform: translateY(0);
+      margin-bottom: 5px;
+      padding: 10px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(5px);
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .text-item.fade-in {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    
+    .text-item.fade-out {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    
+    .text-item.removing {
+      transition: all 0.3s ease-in-out;
+      opacity: 0;
+      transform: translateY(-50px) scale(0.9);
+      margin-bottom: -60px;
+    }
+  </style>
+</head>
+<body>
+  <div id="text-container"></div>
+  
+  <script>
+    const textContainer = document.getElementById('text-container');
+    let displayedTexts = [];
+    let textIdCounter = 0;
+    const maxTexts = 10; // 最大表示数
+    
+    function addDisplayText(text) {
+      if (!text.trim()) return;
+      
+      // 新しいテキスト要素を作成
+      const textItem = document.createElement('div');
+      textItem.className = 'text-item fade-in';
+      textItem.textContent = text;
+      textItem.id = `text-${++textIdCounter}`;
+      
+      // コンテナの最上部に追加
+      textContainer.insertBefore(textItem, textContainer.firstChild);
+      
+      // フェードインアニメーション開始
+      setTimeout(() => {
+        textItem.classList.remove('fade-in');
+      }, 10);
+      
+      // 配列に追加
+      displayedTexts.unshift({
+        id: textItem.id,
+        element: textItem,
+        timestamp: Date.now()
+      });
+      
+      // 最大数を超えた場合は古いものを削除
+      while (displayedTexts.length > maxTexts) {
+        removeOldestText();
+      }
+    }
+    
+    function removeOldestText() {
+      if (displayedTexts.length === 0) return;
+      
+      const oldest = displayedTexts.pop();
+      oldest.element.classList.add('removing');
+      
+      setTimeout(() => {
+        if (oldest.element.parentNode) {
+          oldest.element.parentNode.removeChild(oldest.element);
+        }
+      }, 300);
+    }
+    
+    function clearAllTexts() {
+      displayedTexts.forEach(item => {
+        item.element.classList.add('fade-out');
+        setTimeout(() => {
+          if (item.element.parentNode) {
+            item.element.parentNode.removeChild(item.element);
+          }
+        }, 500);
+      });
+      displayedTexts = [];
+    }
+    
+    // 外部から呼び出される関数（後方互換性のため）
+    function updateDisplayText(text) {
+      if (text === '') {
+        clearAllTexts();
+      } else {
+        addDisplayText(text);
+      }
+    }
+    
+    // テスト用の初期表示をクリア
+    setTimeout(() => {
+      clearAllTexts();
+    }, 1000);
+  </script>
+</body>
+</html>
