@@ -1,8 +1,81 @@
-const { app, BrowserWindow, ipcMain } = require("electron")
+const { app, BrowserWindow, ipcMain, safeStorage } = require("electron")
 const path = require("path")
+const fs = require("fs")
+const SlackWatcher = require("./slack-client")
 
 let mainWindow
 let controlWindow
+let slackWatcher
+
+// 設定ファイルのパス
+const configPath = path.join(app.getPath('userData'), 'slack-config.json')
+
+// 設定を保存
+function saveConfig(config) {
+  try {
+    const configToSave = { ...config }
+    
+    // トークンを暗号化して保存
+    if (safeStorage.isEncryptionAvailable()) {
+      if (config.botToken) {
+        configToSave.botToken = safeStorage.encryptString(config.botToken).toString('base64')
+        configToSave._botTokenEncrypted = true
+      }
+      if (config.appToken) {
+        configToSave.appToken = safeStorage.encryptString(config.appToken).toString('base64')
+        configToSave._appTokenEncrypted = true
+      }
+    }
+    
+    fs.writeFileSync(configPath, JSON.stringify(configToSave, null, 2))
+    console.log('📁 設定を保存しました:', configPath)
+    return true
+  } catch (error) {
+    console.error('❌ 設定保存エラー:', error)
+    return false
+  }
+}
+
+// 設定を読み込み
+function loadConfig() {
+  try {
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+      
+      // 暗号化されたトークンを復号化
+      if (safeStorage.isEncryptionAvailable()) {
+        if (config._botTokenEncrypted && config.botToken) {
+          try {
+            config.botToken = safeStorage.decryptString(Buffer.from(config.botToken, 'base64'))
+            delete config._botTokenEncrypted
+          } catch (error) {
+            console.error('Bot Token復号化エラー:', error)
+            config.botToken = ''
+          }
+        }
+        if (config._appTokenEncrypted && config.appToken) {
+          try {
+            config.appToken = safeStorage.decryptString(Buffer.from(config.appToken, 'base64'))
+            delete config._appTokenEncrypted
+          } catch (error) {
+            console.error('App Token復号化エラー:', error)
+            config.appToken = ''
+          }
+        }
+      }
+      
+      console.log('📁 設定を読み込みました:', {
+        ...config,
+        botToken: config.botToken ? '***LOADED***' : '',
+        appToken: config.appToken ? '***LOADED***' : ''
+      })
+      return config
+    }
+  } catch (error) {
+    console.error('❌ 設定読み込みエラー:', error)
+  }
+  return null
+}
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
@@ -28,8 +101,8 @@ function createMainWindow() {
 
 function createControlWindow() {
   controlWindow = new BrowserWindow({
-    width: 500,
-    height: 600,
+    width: 800,
+    height: 1200,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -46,6 +119,28 @@ function createControlWindow() {
 app.whenReady().then(() => {
   createMainWindow()
   createControlWindow()
+
+  // Slack Watcher初期化
+  slackWatcher = new SlackWatcher()
+  
+  // 保存された設定があれば読み込み
+  const savedConfig = loadConfig()
+  if (savedConfig) {
+    console.log('🔧 初期化時に保存設定を読み込み')
+    slackWatcher.updateConfig(savedConfig)
+  }
+
+  // Slackメッセージ受信時の処理
+  slackWatcher.onMessage((messageData) => {
+    console.log("🎯 メインプロセスでSlackメッセージ受信:", messageData)
+    if (controlWindow) {
+      console.log("📤 コントロールウィンドウに送信中...")
+      controlWindow.webContents.send("slack-message-received", messageData)
+      console.log("✅ コントロールウィンドウに送信完了")
+    } else {
+      console.log("⚠️ コントロールウィンドウが見つかりません")
+    }
+  })
 })
 
 app.on("window-all-closed", () => {
@@ -64,8 +159,116 @@ app.on("activate", () => {
 // IPC通信の設定
 ipcMain.on("display-text", (event, text) => {
   if (mainWindow) {
+    if (text && text.trim()) {
+      // テキストがある場合は最前面に表示
+      mainWindow.setAlwaysOnTop(true, 'screen-saver')
+    } else {
+      // テキストが空の場合は最前面から外す
+      mainWindow.setAlwaysOnTop(false)
+    }
     mainWindow.webContents.executeJavaScript(
       `updateDisplayText('${text.replace(/'/g, "\\'")}');`
     )
+  }
+})
+
+// 最前面表示の制御
+ipcMain.on("set-always-on-top", (event, alwaysOnTop) => {
+  if (mainWindow) {
+    mainWindow.setAlwaysOnTop(alwaysOnTop)
+  }
+})
+
+// Slack関連のIPC
+ipcMain.handle("slack-connect", async (event, config) => {
+  try {
+    // 保存された設定も含めて読み込み
+    const savedConfig = loadConfig();
+    const mergedConfig = {
+      ...config,
+      channels: savedConfig?.channels || []
+    };
+    
+    console.log('🔧 Slack接続設定:', {
+      ...mergedConfig,
+      botToken: mergedConfig.botToken ? '***' : '',
+      appToken: mergedConfig.appToken ? '***' : ''
+    });
+    
+    slackWatcher.updateConfig(mergedConfig);
+    await slackWatcher.connect();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+})
+
+ipcMain.handle("slack-disconnect", async () => {
+  try {
+    await slackWatcher.disconnect()
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("slack-test-connection", async (event, config) => {
+  try {
+    const tempWatcher = new SlackWatcher()
+    tempWatcher.updateConfig(config)
+    return await tempWatcher.testConnection()
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle("slack-get-channels", async () => {
+  try {
+    return await slackWatcher.getChannelList()
+  } catch (error) {
+    return []
+  }
+})
+
+ipcMain.on("slack-add-channel", async (event, channelId) => {
+  await slackWatcher.addWatchChannel(channelId)
+})
+
+ipcMain.on("slack-remove-channel", (event, channelId) => {
+  slackWatcher.removeWatchChannel(channelId)
+})
+
+ipcMain.handle("slack-get-status", () => {
+  return {
+    connected: slackWatcher.getConnectionStatus(),
+    config: slackWatcher.getConfig(),
+  }
+})
+
+// チャンネル情報を取得
+ipcMain.handle("slack-get-channel-info", async (event, channelId) => {
+  try {
+    return await slackWatcher.getChannelInfo(channelId)
+  } catch (error) {
+    return { name: channelId, error: error.message }
+  }
+})
+
+// 設定保存
+ipcMain.handle("save-config", (event, config) => {
+  try {
+    return { success: saveConfig(config) }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+})
+
+// 設定読み込み
+ipcMain.handle("load-config", () => {
+  try {
+    const config = loadConfig()
+    return { success: true, config }
+  } catch (error) {
+    return { success: false, error: error.message, config: null }
   }
 })

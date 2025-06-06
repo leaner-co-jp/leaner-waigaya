@@ -123,6 +123,149 @@
       color: #856404;
       border: 1px solid #ffeaa7;
     }
+    
+    .slack-status {
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-weight: bold;
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      color: #6c757d;
+    }
+    
+    .slack-status.connected {
+      background-color: #d4edda;
+      color: #155724;
+      border-color: #c3e6cb;
+    }
+    
+    .slack-status.error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border-color: #f5c6cb;
+    }
+    
+    .slack-config label {
+      display: inline-block;
+      width: 140px;
+      font-weight: bold;
+    }
+    
+    .slack-config input, .slack-config select {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    
+    #channelList {
+      margin-top: 8px;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      min-height: 40px;
+    }
+    
+    .channel-item {
+      display: inline-block;
+      background: #007cba;
+      color: white;
+      padding: 4px 8px;
+      margin: 2px;
+      border-radius: 12px;
+      font-size: 12px;
+      cursor: help;
+    }
+    
+    .channel-item.unknown {
+      background: #6c757d;
+      font-style: italic;
+    }
+    
+    .channel-item button {
+      background: none;
+      border: none;
+      color: white;
+      margin-left: 5px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    
+    .usage-guide {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .usage-guide h3 {
+      margin: 0 0 10px 0;
+      color: #495057;
+    }
+    
+    .usage-guide ol {
+      margin: 0;
+      padding-left: 20px;
+    }
+    
+    .usage-guide li {
+      margin-bottom: 8px;
+    }
+    
+    .usage-guide ul {
+      margin: 5px 0 0 0;
+      padding-left: 20px;
+    }
+    
+    .usage-guide ul li {
+      margin-bottom: 3px;
+    }
+    
+    .usage-guide a {
+      color: #007cba;
+      text-decoration: none;
+    }
+    
+    .usage-guide a:hover {
+      text-decoration: underline;
+    }
+    
+    .usage-guide code {
+      background: #e9ecef;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+    
+    .debug-info {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .debug-info h4 {
+      margin: 0 0 10px 0;
+      color: #495057;
+    }
+    
+    #debugLog {
+      background: #000;
+      color: #0f0;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
   </style>
 </head>
 <body>
@@ -134,11 +277,95 @@
     </div>
     
     <div class="section">
+      <h2>Slack連携設定</h2>
+      
+      <div class="usage-guide">
+        <h3>🔧 設定手順</h3>
+        <ol>
+          <li><strong>Slack Appを作成</strong>
+            <ul>
+              <li><a href="https://api.slack.com/apps" target="_blank">api.slack.com/apps</a> でアプリを作成</li>
+              <li><strong>「OAuth & Permissions」</strong>で以下のBot Token Scopesを追加:
+                <ul>
+                  <li><code>channels:read</code> - チャンネル一覧取得</li>
+                  <li><code>groups:read</code> - プライベートチャンネル読み取り</li>
+                  <li><code>channels:history</code> - チャンネルメッセージ読み取り</li>
+                  <li><code>users:read</code> - ユーザー情報読み取り</li>
+                </ul>
+              </li>
+              <li><strong>「Socket Mode」</strong>を有効化してApp Tokenを生成</li>
+              <li><strong>「Event Subscriptions」</strong>を有効化:
+                <ul>
+                  <li>「Enable Events」をONにする</li>
+                  <li>「Subscribe to bot events」で以下を追加:</li>
+                  <li><code>message.channels</code> - パブリックチャンネルのメッセージ ⚠️必須</li>
+                  <li><code>message.groups</code> - プライベートチャンネルのメッセージ ⚠️必須</li>
+                  <li><code>message.im</code> - ダイレクトメッセージ（任意）</li>
+                </ul>
+              </li>
+              <li>ワークスペースにアプリをインストール</li>
+              <li>Bot Token (xoxb-) と App Token (xapp-) を取得</li>
+            </ul>
+          </li>
+          <li><strong>アプリに接続</strong>: 上記トークンを入力し「Slack接続」をクリック</li>
+          <li><strong>チャンネル監視</strong>: 監視したいチャンネルを選択し「チャンネル追加」</li>
+          <li><strong>自動表示</strong>: 「自動追加: ON」でSlackメッセージが自動でテキスト表示される</li>
+        </ol>
+      </div>
+      
+      <div class="slack-status" id="slackStatus">
+        未接続
+      </div>
+      
+      <div class="debug-info" id="debugInfo" style="display: none;">
+        <h4>🔍 デバッグ情報</h4>
+        <div id="debugLog"></div>
+        <button onclick="clearDebugLog()" style="margin-top: 10px;">ログクリア</button>
+        <button onclick="toggleDebug()" style="margin-top: 10px;">デバッグ表示切替</button>
+      </div>
+      <div class="slack-config">
+        <div style="margin-bottom: 15px;">
+          <label for="botToken">Bot Token (xoxb-):</label>
+          <input type="password" id="botToken" placeholder="xoxb-your-bot-token" style="width: 300px;">
+        </div>
+        <div style="margin-bottom: 15px;">
+          <label for="appToken">App Token (xapp-):</label>
+          <input type="password" id="appToken" placeholder="xapp-your-app-token" style="width: 300px;">
+        </div>
+        <div style="margin-bottom: 15px;">
+          <label for="channelSearch">チャンネル検索:</label>
+          <input type="text" id="channelSearch" placeholder="チャンネル名で検索..." style="width: 200px;" disabled>
+          <button id="loadChannelsBtn" disabled style="margin-left: 10px;">チャンネル一覧取得</button>
+        </div>
+        <div style="margin-bottom: 15px;">
+          <label for="channelSelect">監視チャンネル:</label>
+          <select id="channelSelect" style="width: 300px;" disabled size="8">
+            <option value="">先にSlackに接続してください</option>
+          </select>
+        </div>
+        <div class="controls">
+          <button id="connectSlackBtn">Slack接続</button>
+          <button id="disconnectSlackBtn">切断</button>
+          <button id="addChannelBtn">チャンネル追加</button>
+          <button id="slackAutoBtn">自動追加: OFF</button>
+          <button id="autoConnectBtn">起動時自動接続: ON</button>
+          <button id="saveConfigBtn">設定保存</button>
+          <button id="clearConfigBtn" style="background: #dc3545;">設定クリア</button>
+          <button onclick="toggleDebug()" style="background: #6c757d;">デバッグ表示</button>
+        </div>
+        <div id="watchedChannels" style="margin-top: 15px;">
+          <strong>監視中のチャンネル:</strong>
+          <div id="channelList">なし</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
       <h2>新しいテキストを追加</h2>
       <textarea id="newText" placeholder="表示したいテキストを入力してください..."></textarea>
       <div class="controls">
-        <button onclick="addText()">キューに追加</button>
-        <button onclick="addAndStart()">追加して再生開始</button>
+        <button id="addTextBtn">キューに追加</button>
+        <button id="addAndStartBtn">追加して再生開始</button>
       </div>
     </div>
     
@@ -158,10 +385,10 @@
     <div class="section">
       <h2>再生コントロール</h2>
       <div class="controls">
-        <button onclick="startQueue()">再生開始</button>
-        <button onclick="stopQueue()">停止</button>
-        <button onclick="nextText()">次へスキップ</button>
-        <button onclick="clearQueue()">キューをクリア</button>
+        <button id="startQueueBtn">再生開始</button>
+        <button id="stopQueueBtn">停止</button>
+        <button id="nextTextBtn">次へスキップ</button>
+        <button id="clearQueueBtn">キューをクリア</button>
       </div>
     </div>
     

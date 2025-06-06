@@ -12,5 +12,9 @@
   "description": "",
   "devDependencies": {
     "electron": "^36.4.0"
+  },
+  "dependencies": {
+    "@slack/socket-mode": "^2.0.4",
+    "@slack/web-api": "^7.9.2"
   }
 }

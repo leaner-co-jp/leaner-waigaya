@@ -127,6 +127,12 @@
         }, 500);
       });
       displayedTexts = [];
+      
+      // 全てのテキストがクリアされた時に最前面表示を解除
+      if (typeof require !== 'undefined') {
+        const { ipcRenderer } = require('electron');
+        ipcRenderer.send('set-always-on-top', false);
+      }
     }
     
     // 外部から呼び出される関数（後方互換性のため）
