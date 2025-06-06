@@ -266,18 +266,311 @@
       overflow-y: auto;
       white-space: pre-wrap;
     }
+    
+    /* 新しいUI用のスタイル */
+    .setup-wizard {
+      margin-bottom: 30px;
+    }
+    
+    .welcome-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      border-radius: 15px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .welcome-card h2 {
+      margin: 0 0 15px 0;
+      font-size: 28px;
+    }
+    
+    .welcome-card p {
+      margin: 0 0 30px 0;
+      font-size: 16px;
+      opacity: 0.9;
+    }
+    
+    .setup-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-top: 30px;
+    }
+    
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 20px;
+      background: rgba(255,255,255,0.1);
+      padding: 20px;
+      border-radius: 10px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .step-number {
+      background: #fff;
+      color: #667eea;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    
+    .step-content h3 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+    }
+    
+    .step-content p {
+      margin: 0 0 15px 0;
+      opacity: 0.9;
+    }
+    
+    .step-button {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 2px solid rgba(255,255,255,0.3);
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .step-button:hover {
+      background: rgba(255,255,255,0.3);
+      transform: translateY(-2px);
+    }
+    
+    .dashboard {
+      margin-bottom: 30px;
+    }
+    
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .status-card, .slack-card, .controls-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .status-card:hover, .slack-card:hover, .controls-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .status-card h3, .slack-card h3, .controls-card h3 {
+      margin: 0 0 15px 0;
+      color: #333;
+      font-size: 16px;
+    }
+    
+    .queue-count {
+      margin-top: 10px;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .watched-summary {
+      margin-top: 10px;
+      color: #666;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .small-btn {
+      background: #f0f0f0;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s ease;
+    }
+    
+    .small-btn:hover {
+      background: #e0e0e0;
+    }
+    
+    .quick-controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .control-btn {
+      flex: 1;
+      min-width: 70px;
+      padding: 10px 8px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    
+    .control-btn.primary {
+      background: #28a745;
+      color: white;
+    }
+    
+    .control-btn.primary:hover {
+      background: #218838;
+      transform: translateY(-1px);
+    }
+    
+    .control-btn:not(.primary):not(.danger) {
+      background: #6c757d;
+      color: white;
+    }
+    
+    .control-btn:not(.primary):not(.danger):hover {
+      background: #5a6268;
+      transform: translateY(-1px);
+    }
+    
+    .control-btn.danger {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .control-btn.danger:hover {
+      background: #c82333;
+      transform: translateY(-1px);
+    }
+    
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    .section-header h2 {
+      margin: 0;
+    }
+    
+    .collapse-btn {
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 4px;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    
+    .collapse-btn:hover {
+      background: rgba(0,0,0,0.1);
+    }
+    
+    .collapse-btn.collapsed {
+      transform: rotate(-90deg);
+    }
+    
+    .section-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    
+    .section-content.collapsed {
+      max-height: 0 !important;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>テキスト表示コントロール</h1>
+    <h1>📺 テキスト表示コントロール</h1>
     
-    <div class="status stopped" id="status">
-      停止中
+    <!-- 初回設定画面 -->
+    <div class="setup-wizard" id="setupWizard" style="display: none;">
+      <div class="welcome-card">
+        <h2>🚀 セットアップへようこそ</h2>
+        <p>Slackメッセージを透過ウィンドウに表示するための設定を行います。</p>
+        
+        <div class="setup-steps">
+          <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <h3>Slack Appを作成</h3>
+              <p>まず、Slackアプリを作成してトークンを取得してください。</p>
+              <button class="step-button" onclick="toggleSetupGuide()">📖 詳細な手順を見る</button>
+            </div>
+          </div>
+          
+          <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <h3>トークンを入力</h3>
+              <p>取得したBot TokenとApp Tokenを下記に入力してください。</p>
+              <button class="step-button" onclick="scrollToTokenInput()">🔑 トークン入力へ</button>
+            </div>
+          </div>
+          
+          <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <h3>チャンネル選択</h3>
+              <p>監視したいSlackチャンネルを選択して完了です。</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     
-    <div class="section">
-      <h2>Slack連携設定</h2>
+    <!-- 通常運用画面 -->
+    <div class="dashboard" id="dashboard" style="display: none;">
+      <div class="dashboard-grid">
+        <div class="status-card">
+          <h3>🎬 再生状態</h3>
+          <div class="status stopped" id="status">停止中</div>
+          <div class="queue-count">キュー: <span id="queueCount">0</span>件</div>
+        </div>
+        
+        <div class="slack-card">
+          <h3>💬 Slack連携</h3>
+          <div class="slack-status connected" id="slackStatus">接続中</div>
+          <div class="watched-summary">
+            監視中: <span id="channelCount">0</span>チャンネル
+            <button class="small-btn" onclick="showSlackSettings()">⚙️ 設定</button>
+          </div>
+        </div>
+        
+        <div class="controls-card">
+          <h3>🎮 クイックコントロール</h3>
+          <div class="quick-controls">
+            <button id="quickStartBtn" class="control-btn primary">▶️ 再生</button>
+            <button id="quickStopBtn" class="control-btn">⏹️ 停止</button>
+            <button id="quickClearBtn" class="control-btn danger">🗑️ クリア</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="section slack-settings" id="slackSettings">
+      <div class="section-header">
+        <h2>💬 Slack連携設定</h2>
+        <button class="collapse-btn" id="slackCollapseBtn" onclick="toggleSlackSettings()">▼</button>
+      </div>
+      <div class="section-content" id="slackContent">
       
       <div class="usage-guide">
         <h3>🔧 設定手順</h3>

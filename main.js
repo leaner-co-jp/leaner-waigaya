@@ -166,9 +166,9 @@ ipcMain.on("display-text", (event, text) => {
       // テキストが空の場合は最前面から外す
       mainWindow.setAlwaysOnTop(false)
     }
-    mainWindow.webContents.executeJavaScript(
-      `updateDisplayText('${text.replace(/'/g, "\\'")}');`
-    )
+    
+    // データをレンダラープロセスに送信
+    mainWindow.webContents.send('display-text-data', text)
   }
 })
 
@@ -185,13 +185,8 @@ ipcMain.on("display-slack-message", (event, data) => {
     // Slackメッセージの場合は最前面に表示
     mainWindow.setAlwaysOnTop(true, 'screen-saver')
     
-    const { text, metadata } = data
-    const escapedText = text.replace(/'/g, "\\'")
-    const metadataJson = JSON.stringify(metadata).replace(/'/g, "\\'")
-    
-    mainWindow.webContents.executeJavaScript(
-      `displaySlackMessage('${escapedText}', '${metadataJson}');`
-    )
+    // データをレンダラープロセスに送信
+    mainWindow.webContents.send('display-slack-message-data', data)
   }
 })
 

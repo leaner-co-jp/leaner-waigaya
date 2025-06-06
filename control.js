@@ -9,11 +9,13 @@ class SlackIntegration {
     this.watchedChannelData = {}; // { channelId: { name: 'channel-name', id: 'channelId' } }
     this.availableChannels = [];
     this.debugVisible = false;
+    this.isSetupMode = false; // セットアップモードかどうか
     
     this.setupSlackListeners();
     this.loadSlackStatus();
     this.setupChannelSearch();
     this.setupDebugLogging();
+    this.initializeUI();
   }
   
   setupDebugLogging() {
@@ -249,6 +251,9 @@ class SlackIntegration {
         
         // 接続成功時に設定を保存
         await this.saveConfig();
+        
+        // 設定が完了したらダッシュボードモードに切り替え
+        this.checkSetupStatus();
       } else {
         this.updateStatus(`接続エラー: ${result.error}`, 'error');
       }
@@ -380,6 +385,9 @@ class SlackIntegration {
     await this.updateUI();
     // チャンネル追加時に設定を保存
     await this.saveConfig();
+    
+    // チャンネル追加後にUI状態をチェック
+    this.checkSetupStatus();
   }
   
   async removeChannel(channelId) {
@@ -462,6 +470,64 @@ class SlackIntegration {
     status.className = 'slack-status';
     if (type) {
       status.classList.add(type);
+    }
+  }
+  
+  // UI初期化
+  initializeUI() {
+    this.checkSetupStatus();
+  }
+  
+  // セットアップ状況をチェック
+  checkSetupStatus() {
+    const hasTokens = document.getElementById('botToken').value && document.getElementById('appToken').value;
+    const hasChannels = this.watchedChannels.length > 0;
+    
+    if (!hasTokens || !hasChannels) {
+      this.showSetupMode();
+    } else {
+      this.showDashboardMode();
+    }
+  }
+  
+  // セットアップモードを表示
+  showSetupMode() {
+    this.isSetupMode = true;
+    document.getElementById('setupWizard').style.display = 'block';
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('slackSettings').style.display = 'block';
+    
+    // Slack設定を展開状態にする
+    const content = document.getElementById('slackContent');
+    const collapseBtn = document.getElementById('slackCollapseBtn');
+    content.classList.remove('collapsed');
+    collapseBtn.classList.remove('collapsed');
+    collapseBtn.textContent = '▼';
+  }
+  
+  // ダッシュボードモードを表示
+  showDashboardMode() {
+    this.isSetupMode = false;
+    document.getElementById('setupWizard').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('slackSettings').style.display = 'block';
+    
+    // Slack設定を折りたたみ状態にする
+    const content = document.getElementById('slackContent');
+    const collapseBtn = document.getElementById('slackCollapseBtn');
+    content.classList.add('collapsed');
+    collapseBtn.classList.add('collapsed');
+    collapseBtn.textContent = '▶';
+    
+    this.updateDashboard();
+  }
+  
+  // ダッシュボードの更新
+  updateDashboard() {
+    // チャンネル数の更新
+    const channelCount = document.getElementById('channelCount');
+    if (channelCount) {
+      channelCount.textContent = this.watchedChannels.length;
     }
   }
 }
@@ -637,18 +703,23 @@ class TextQueue {
     
     if (this.queue.length === 0) {
       queueList.innerHTML = 'キューは空です';
-      return;
+    } else {
+      queueList.innerHTML = this.queue.map((item, index) => `
+        <div class="queue-item ${index === this.currentIndex && this.isPlaying ? 'active' : ''}">
+          <div>
+            <strong>${index + 1}.</strong> ${item.text}
+            <small style="color: #666; margin-left: 10px;">(${item.timestamp})</small>
+          </div>
+          <button onclick="textQueue.removeItem(${item.id})" style="background: #dc3545; padding: 4px 8px; font-size: 12px;">削除</button>
+        </div>
+      `).join('');
     }
     
-    queueList.innerHTML = this.queue.map((item, index) => `
-      <div class="queue-item ${index === this.currentIndex && this.isPlaying ? 'active' : ''}">
-        <div>
-          <strong>${index + 1}.</strong> ${item.text}
-          <small style="color: #666; margin-left: 10px;">(${item.timestamp})</small>
-        </div>
-        <button onclick="textQueue.removeItem(${item.id})" style="background: #dc3545; padding: 4px 8px; font-size: 12px;">削除</button>
-      </div>
-    `).join('');
+    // ダッシュボードのキュー数も更新
+    const queueCount = document.getElementById('queueCount');
+    if (queueCount) {
+      queueCount.textContent = this.queue.length;
+    }
   }
   
   updateStatus() {
@@ -773,6 +844,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('clearQueueBtn').onclick = () => {
     clearQueue();
   };
+  
+  // ダッシュボードのクイックコントロール
+  document.getElementById('quickStartBtn').onclick = () => {
+    startQueue();
+  };
+  
+  document.getElementById('quickStopBtn').onclick = () => {
+    stopQueue();
+  };
+  
+  document.getElementById('quickClearBtn').onclick = () => {
+    clearQueue();
+  };
 });
 
 // UI関数
@@ -825,5 +909,47 @@ function clearDebugLog() {
   const debugLog = document.getElementById('debugLog');
   if (debugLog) {
     debugLog.textContent = '';
+  }
+}
+
+// セットアップ用の関数
+function toggleSetupGuide() {
+  const guideElement = document.querySelector('.usage-guide');
+  if (guideElement.style.display === 'none') {
+    guideElement.style.display = 'block';
+  } else {
+    guideElement.style.display = 'none';
+  }
+}
+
+function scrollToTokenInput() {
+  const tokenInput = document.getElementById('botToken');
+  tokenInput.scrollIntoView({ behavior: 'smooth' });
+  tokenInput.focus();
+}
+
+function showSlackSettings() {
+  const content = document.getElementById('slackContent');
+  const collapseBtn = document.getElementById('slackCollapseBtn');
+  content.classList.remove('collapsed');
+  collapseBtn.classList.remove('collapsed');
+  collapseBtn.textContent = '▼';
+  
+  // 設定エリアまでスクロール
+  document.getElementById('slackSettings').scrollIntoView({ behavior: 'smooth' });
+}
+
+function toggleSlackSettings() {
+  const content = document.getElementById('slackContent');
+  const collapseBtn = document.getElementById('slackCollapseBtn');
+  
+  if (content.classList.contains('collapsed')) {
+    content.classList.remove('collapsed');
+    collapseBtn.classList.remove('collapsed');
+    collapseBtn.textContent = '▼';
+  } else {
+    content.classList.add('collapsed');
+    collapseBtn.classList.add('collapsed');
+    collapseBtn.textContent = '▶';
   }
 }

@@ -175,9 +175,19 @@
     }
     
     // Slackメッセージ専用の表示関数
-    function displaySlackMessage(text, metadataJson) {
+    function displaySlackMessage(text, metadata) {
       try {
-        const metadata = JSON.parse(metadataJson);
+        // テキストの安全な処理
+        const safeText = text ? String(text).trim() : '';
+        const safeUser = metadata?.user ? String(metadata.user).trim() : 'Unknown';
+        const safeUserIcon = metadata?.userIcon || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="%23ccc"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">👤</text></svg>';
+        
+        if (!safeText) {
+          console.warn('空のSlackメッセージを受信:', { text, metadata });
+          return;
+        }
+        
+        console.log('Slackメッセージ表示開始:', { text: safeText, user: safeUser });
         
         // 新しいSlackメッセージ要素を作成
         const messageItem = document.createElement('div');
@@ -187,7 +197,7 @@
         // アバター画像
         const avatar = document.createElement('img');
         avatar.className = 'slack-avatar';
-        avatar.src = metadata.userIcon || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="%23ccc"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">👤</text></svg>';
+        avatar.src = safeUserIcon;
         avatar.onerror = function() {
           this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="%23ccc"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">👤</text></svg>';
         };
@@ -199,12 +209,13 @@
         // ユーザー名
         const userDiv = document.createElement('div');
         userDiv.className = 'slack-user';
-        userDiv.textContent = metadata.user;
+        userDiv.textContent = safeUser;
         
-        // メッセージテキスト
+        // メッセージテキスト（複数行対応）
         const textDiv = document.createElement('div');
         textDiv.className = 'slack-text';
-        textDiv.textContent = text;
+        // 複数行テキストを適切に処理
+        textDiv.textContent = safeText;
         
         content.appendChild(userDiv);
         content.appendChild(textDiv);
@@ -213,6 +224,8 @@
         
         // コンテナの最上部に追加
         textContainer.insertBefore(messageItem, textContainer.firstChild);
+        
+        console.log('Slackメッセージ要素をDOMに追加完了');
         
         // フェードインアニメーション開始
         setTimeout(() => {
@@ -231,10 +244,19 @@
           removeOldestText();
         }
         
+        console.log('Slackメッセージ表示完了');
+        
       } catch (error) {
         console.error('Slackメッセージ表示エラー:', error);
+        console.error('エラー詳細:', { text, metadata, stack: error.stack });
+        
         // フォールバック: 通常のテキスト表示
-        addDisplayText(`${metadata?.user || 'Unknown'}: ${text}`);
+        try {
+          const fallbackText = `${metadata?.user || 'Unknown'}: ${text || 'エラー'}`;
+          addDisplayText(fallbackText);
+        } catch (fallbackError) {
+          console.error('フォールバック表示もエラー:', fallbackError);
+        }
       }
     }
     
@@ -251,6 +273,22 @@
     setTimeout(() => {
       clearAllTexts();
     }, 1000);
+    
+    // IPCメッセージリスナーの設定
+    if (typeof require !== 'undefined') {
+      const { ipcRenderer } = require('electron');
+      
+      // Slackメッセージデータを受信
+      ipcRenderer.on('display-slack-message-data', (event, data) => {
+        const { text, metadata } = data;
+        displaySlackMessage(text, metadata);
+      });
+      
+      // 通常テキストデータを受信
+      ipcRenderer.on('display-text-data', (event, text) => {
+        updateDisplayText(text);
+      });
+    }
   </script>
 </body>
 </html>
