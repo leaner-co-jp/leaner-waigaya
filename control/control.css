@@ -241,7 +241,7 @@ button:hover {
   background: #e9ecef;
   padding: 2px 4px;
   border-radius: 3px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 12px;
 }
 
@@ -266,7 +266,7 @@ button:hover {
   color: #0f0;
   padding: 10px;
   border-radius: 4px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 12px;
   max-height: 300px;
   overflow-y: auto;
@@ -367,25 +367,21 @@ button:hover {
 }
 
 .status-card,
-.slack-card,
-.controls-card {
+.slack-card {
   background: white;
   padding: 20px;
   border-radius: 12px;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-
 .status-card:hover,
-.slack-card:hover,
-.controls-card:hover {
+.slack-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
 .status-card h3,
-.slack-card h3,
-.controls-card h3 {
+.slack-card h3 {
   margin: 0 0 15px 0;
   color: #333;
   font-size: 16px;
@@ -418,54 +414,6 @@ button:hover {
 
 .small-btn:hover {
   background: #e0e0e0;
-}
-
-.quick-controls {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.control-btn {
-  flex: 1;
-  min-width: 70px;
-  padding: 10px 8px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.control-btn.primary {
-  background: #28a745;
-  color: white;
-}
-
-.control-btn.primary:hover {
-  background: #218838;
-  transform: translateY(-1px);
-}
-
-.control-btn:not(.primary):not(.danger) {
-  background: #6c757d;
-  color: white;
-}
-
-.control-btn:not(.primary):not(.danger):hover {
-  background: #5a6268;
-  transform: translateY(-1px);
-}
-
-.control-btn.danger {
-  background: #dc3545;
-  color: white;
-}
-
-.control-btn.danger:hover {
-  background: #c82333;
-  transform: translateY(-1px);
 }
 
 /* セクションヘッダー（折りたたみ） */
