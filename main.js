@@ -92,8 +92,8 @@ function loadConfig() {
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 100,
+    height: 100,
     frame: false,
     transparent: true,
     alwaysOnTop: false,
@@ -222,6 +222,26 @@ ipcMain.on("set-always-on-top", (event, alwaysOnTop) => {
       isAlwaysOnTopManuallySet = false
       console.log("🔧 最前面表示の手動設定をリセット")
     }, 5000) // 5秒後にリセット
+  }
+})
+
+// ウィンドウサイズの更新
+ipcMain.on("update-window-size", (event, { width, height }) => {
+  if (mainWindow) {
+    console.log(`🔧 ウィンドウサイズ更新: ${width}x${height}`)
+    mainWindow.setSize(width, height)
+
+    // ウィンドウを画面の左上に配置（必要に応じて調整）
+    const { screen } = require("electron")
+    const primaryDisplay = screen.getPrimaryDisplay()
+    const { width: screenWidth, height: screenHeight } =
+      primaryDisplay.workAreaSize
+
+    // 画面の左上から少し離れた位置に配置
+    const x = 50
+    const y = 50
+
+    mainWindow.setPosition(x, y)
   }
 })
 

@@ -25,6 +25,9 @@ class DisplayManager {
     this.startFadeInAnimation(textItem)
     this.trackDisplayedText(textItem)
     this.enforceMaxTexts()
+
+    // ウィンドウサイズを更新（少し遅延させてレンダリング完了を待つ）
+    setTimeout(() => this.updateWindowSize(), 100)
   }
 
   /**
@@ -53,6 +56,9 @@ class DisplayManager {
       this.enforceMaxTexts()
 
       console.log("Slackメッセージ表示完了")
+
+      // ウィンドウサイズを更新（少し遅延させてレンダリング完了を待つ）
+      setTimeout(() => this.updateWindowSize(), 100)
     } catch (error) {
       this.handleSlackDisplayError(error, text, metadata)
     }
@@ -78,6 +84,9 @@ class DisplayManager {
       console.log("🔧 全テキストクリア: 最前面表示を解除")
       ipcRenderer.send("set-always-on-top", false)
     }
+
+    // ウィンドウサイズを最小に更新
+    setTimeout(() => this.updateWindowSize(), 100)
   }
 
   /**
@@ -239,6 +248,8 @@ class DisplayManager {
       if (oldest.element.parentNode) {
         oldest.element.parentNode.removeChild(oldest.element)
       }
+      // 要素削除後にウィンドウサイズを更新
+      this.updateWindowSize()
     }, 300)
   }
 
@@ -278,6 +289,63 @@ class DisplayManager {
       ipcRenderer.on("display-text-data", (event, text) => {
         this.updateDisplayText(text)
       })
+    }
+  }
+
+  /**
+   * ウィンドウサイズを更新
+   */
+  updateWindowSize() {
+    if (typeof require !== "undefined") {
+      const { ipcRenderer } = require("electron")
+
+      const hasContent = this.displayedTexts.length > 0
+
+      if (hasContent) {
+        // DOM要素が完全にレンダリングされるまで少し待つ
+        setTimeout(() => {
+          // コンテナ全体のサイズを基準にする
+          const containerRect = this.textContainer.getBoundingClientRect()
+
+          // パディングと最小/最大サイズを考慮
+          const padding = 40
+          const minWidth = 400
+          const minHeight = 150
+          const maxWidthLimit = 1200
+          const maxHeightLimit = 800
+
+          // コンテナのscrollサイズも考慮
+          const scrollWidth = this.textContainer.scrollWidth
+          const scrollHeight = this.textContainer.scrollHeight
+
+          const contentWidth = Math.max(
+            minWidth,
+            Math.min(
+              maxWidthLimit,
+              Math.max(containerRect.width, scrollWidth) + padding
+            )
+          )
+          const contentHeight = Math.max(
+            minHeight,
+            Math.min(
+              maxHeightLimit,
+              Math.max(containerRect.height, scrollHeight) + padding
+            )
+          )
+
+          console.log(
+            `🔧 ウィンドウサイズ更新: ${contentWidth}x${contentHeight} (コンテナ: ${containerRect.width}x${containerRect.height}, スクロール: ${scrollWidth}x${scrollHeight})`
+          )
+          ipcRenderer.send("update-window-size", {
+            width: Math.ceil(contentWidth),
+            height: Math.ceil(contentHeight),
+          })
+        }, 50)
+      } else {
+        // テキストがない場合：デフォルトサイズに設定
+        console.log("🔧 ウィンドウサイズ更新: デフォルトサイズ")
+        ipcRenderer.send("update-window-size", { width: 400, height: 150 })
+      }
     }
   }
 
