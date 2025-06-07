@@ -1,3 +1,8 @@
+// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+if (require("electron-squirrel-startup")) {
+  app.quit()
+}
+
 const { app, BrowserWindow, ipcMain, safeStorage } = require("electron")
 const path = require("path")
 const fs = require("fs")
@@ -108,7 +113,7 @@ function createMainWindow() {
     mainWindow.loadURL("http://localhost:5173/display/display.html")
   } else {
     // プロダクション環境: ビルドされたファイルから読み込み
-    mainWindow.loadFile(path.join(__dirname, "dist/display.html"))
+    mainWindow.loadFile(path.join(__dirname, "dist/display/display.html"))
   }
 
   mainWindow.on("closed", () => {
@@ -134,7 +139,7 @@ function createControlWindow() {
     controlWindow.loadURL("http://localhost:5173/control/control.html")
   } else {
     // プロダクション環境: ビルドされたファイルから読み込み
-    controlWindow.loadFile(path.join(__dirname, "dist/control.html"))
+    controlWindow.loadFile(path.join(__dirname, "dist/control/control.html"))
   }
 
   controlWindow.on("closed", () => {

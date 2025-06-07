@@ -11,3 +11,6 @@ release/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Electron Forge
+out/

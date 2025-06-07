@@ -5,6 +5,7 @@ Slack メッセージを Electron アプリで透過ウィンドウに表示す�
 ## 技術スタック
 
 - **Electron**: デスクトップアプリケーションフレームワーク
+- **Electron Forge**: パッケージング・配布ツール
 - **Vite**: 高速なビルドツール
 - **Slack API**: Slack メッセージの取得
 
@@ -28,27 +29,36 @@ npm run electron:dev
 - Vite サーバーを `http://localhost:5173` で起動
 - サーバーが起動したら Electron アプリを開発モードで起動
 
-### 3. プロダクションビルド
+### 3. プロダクション環境での実行
 
 ```bash
-# HTMLファイルをビルド
-npm run build
+# Electron Forgeでアプリを起動
+npm start
+```
 
-# Electronアプリをパッケージ化
-npm run electron:build
+### 4. パッケージング・配布
 
-# パッケージ化のみ（インストーラーなし）
-npm run electron:pack
+```bash
+# HTMLファイルをビルドしてアプリをパッケージ化
+npm run package
+
+# インストーラーを作成
+npm run make
+
+# 配布（設定済みの場合）
+npm run publish
 ```
 
 ## 開発用コマンド
 
+- `npm start`: Electron Forge でアプリを起動
 - `npm run dev`: Vite サーバーのみ起動
 - `npm run build`: プロダクション用に HTML ファイルをビルド
 - `npm run preview`: ビルドしたファイルをプレビュー
 - `npm run electron:dev`: 開発環境で Electron アプリを起動
-- `npm run electron:build`: アプリをビルドしてパッケージ化
-- `npm run electron:pack`: パッケージ化のみ実行
+- `npm run package`: アプリをパッケージ化
+- `npm run make`: インストーラーを作成
+- `npm run publish`: アプリを配布（設定済みの場合）
 
 ## ファイル構造
 
@@ -65,11 +75,33 @@ comsc/
 │   ├── control.js
 │   └── slack-client.js     # Slack API クライアント
 ├── dist/                   # Viteビルド出力
-├── release/                # Electronビルド出力
+├── out/                    # Electron Forgeパッケージ出力
 ├── vite.config.js          # Vite設定
-├── electron-builder.json   # Electron Builder設定
+├── forge.config.js         # Electron Forge設定
 └── package.json
 ```
+
+## パッケージング詳細
+
+### サポートプラットフォーム
+
+- **macOS**: ZIP 形式の配布パッケージ
+- **Windows**: Squirrel.Windows 形式のインストーラー
+- **Linux**: DEB・RPM パッケージ
+
+### 出力ディレクトリ
+
+- `out/COMSC-{platform}-{arch}/`: パッケージ化されたアプリ
+- `out/make/`: インストーラー・配布パッケージ
+
+### カスタマイズ
+
+`forge.config.js`でパッケージングの詳細設定が可能：
+
+- アプリ名・アイコン
+- インストーラーの設定
+- 配布設定
+- セキュリティ設定（Fuses）
 
 ## 開発とプロダクションの違い
 
@@ -84,6 +116,13 @@ comsc/
 - HTML ファイルは`dist/`フォルダのビルド済みファイルから読み込み
 - 最適化されたバンドル
 - パッケージ化されたアプリ
+
+## 推奨ワークフロー
+
+1. **開発時**: `npm run electron:dev` で開発環境を使用
+2. **テスト時**: `npm start` でプロダクション環境をテスト
+3. **パッケージ化**: `npm run package` でアプリをパッケージ化
+4. **配布**: `npm run make` でインストーラーを作成
 
 ## Slack 設定
 
