@@ -1,0 +1,308 @@
+/**
+ * 透過背景テキスト表示機能
+ */
+
+class DisplayManager {
+  constructor() {
+    this.textContainer = document.getElementById('text-container');
+    this.displayedTexts = [];
+    this.textIdCounter = 0;
+    this.maxTexts = 10; // 最大表示数
+    
+    this.initializeIPC();
+    this.clearTestDisplay();
+  }
+
+  /**
+   * 通常のテキストを表示
+   * @param {string} text - 表示するテキスト
+   */
+  addDisplayText(text) {
+    if (!text.trim()) return;
+
+    const textItem = this.createTextElement(text, 'text-item fade-in');
+    this.addToContainer(textItem);
+    this.startFadeInAnimation(textItem);
+    this.trackDisplayedText(textItem);
+    this.enforceMaxTexts();
+  }
+
+  /**
+   * Slackメッセージを表示
+   * @param {string} text - メッセージテキスト
+   * @param {Object} metadata - ユーザー情報等のメタデータ
+   */
+  displaySlackMessage(text, metadata) {
+    try {
+      const safeData = this.sanitizeSlackData(text, metadata);
+      
+      if (!safeData.text) {
+        console.warn('空のSlackメッセージを受信:', { text, metadata });
+        return;
+      }
+
+      console.log('Slackメッセージ表示開始:', {
+        text: safeData.text,
+        user: safeData.user,
+      });
+
+      const messageItem = this.createSlackMessageElement(safeData);
+      this.addToContainer(messageItem);
+      this.startFadeInAnimation(messageItem);
+      this.trackDisplayedText(messageItem);
+      this.enforceMaxTexts();
+
+      console.log('Slackメッセージ表示完了');
+    } catch (error) {
+      this.handleSlackDisplayError(error, text, metadata);
+    }
+  }
+
+  /**
+   * 全てのテキストをクリア
+   */
+  clearAllTexts() {
+    this.displayedTexts.forEach((item) => {
+      item.element.classList.add('fade-out');
+      setTimeout(() => {
+        if (item.element.parentNode) {
+          item.element.parentNode.removeChild(item.element);
+        }
+      }, 500);
+    });
+    this.displayedTexts = [];
+
+    // 全てのテキストがクリアされた時に最前面表示を解除
+    if (typeof require !== 'undefined') {
+      const { ipcRenderer } = require('electron');
+      ipcRenderer.send('set-always-on-top', false);
+    }
+  }
+
+  /**
+   * 外部から呼び出される関数（後方互換性のため）
+   * @param {string} text - 表示するテキスト
+   */
+  updateDisplayText(text) {
+    if (text === '') {
+      this.clearAllTexts();
+    } else {
+      this.addDisplayText(text);
+    }
+  }
+
+  // プライベートメソッド
+
+  /**
+   * テキスト要素を作成
+   * @param {string} text - テキスト内容
+   * @param {string} className - CSSクラス名
+   * @returns {HTMLElement} 作成された要素
+   */
+  createTextElement(text, className) {
+    const textItem = document.createElement('div');
+    textItem.className = className;
+    textItem.textContent = text;
+    textItem.id = `text-${++this.textIdCounter}`;
+    return textItem;
+  }
+
+  /**
+   * Slackメッセージ要素を作成
+   * @param {Object} safeData - サニタイズされたデータ
+   * @returns {HTMLElement} 作成された要素
+   */
+  createSlackMessageElement(safeData) {
+    const messageItem = document.createElement('div');
+    messageItem.className = 'text-item slack-message fade-in';
+    messageItem.id = `text-${++this.textIdCounter}`;
+
+    // アバター画像
+    const avatar = this.createAvatarElement(safeData.userIcon);
+    
+    // コンテンツエリア
+    const content = this.createSlackContentElement(safeData);
+
+    messageItem.appendChild(avatar);
+    messageItem.appendChild(content);
+
+    return messageItem;
+  }
+
+  /**
+   * アバター画像要素を作成
+   * @param {string} userIcon - ユーザーアイコンURL
+   * @returns {HTMLElement} アバター要素
+   */
+  createAvatarElement(userIcon) {
+    const avatar = document.createElement('img');
+    avatar.className = 'slack-avatar';
+    avatar.src = userIcon;
+    avatar.onerror = function () {
+      this.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="%23ccc"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">👤</text></svg>';
+    };
+    return avatar;
+  }
+
+  /**
+   * Slackコンテンツエリアを作成
+   * @param {Object} safeData - サニタイズされたデータ
+   * @returns {HTMLElement} コンテンツ要素
+   */
+  createSlackContentElement(safeData) {
+    const content = document.createElement('div');
+    content.className = 'slack-content';
+
+    // ユーザー名
+    const userDiv = document.createElement('div');
+    userDiv.className = 'slack-user';
+    userDiv.textContent = safeData.user;
+
+    // メッセージテキスト
+    const textDiv = document.createElement('div');
+    textDiv.className = 'slack-text';
+    textDiv.textContent = safeData.text;
+
+    content.appendChild(userDiv);
+    content.appendChild(textDiv);
+
+    return content;
+  }
+
+  /**
+   * Slackデータをサニタイズ
+   * @param {string} text - テキスト
+   * @param {Object} metadata - メタデータ
+   * @returns {Object} サニタイズされたデータ
+   */
+  sanitizeSlackData(text, metadata) {
+    return {
+      text: text ? String(text).trim() : '',
+      user: metadata?.user ? String(metadata.user).trim() : 'Unknown',
+      userIcon: metadata?.userIcon || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="%23ccc"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">👤</text></svg>'
+    };
+  }
+
+  /**
+   * 要素をコンテナに追加
+   * @param {HTMLElement} element - 追加する要素
+   */
+  addToContainer(element) {
+    this.textContainer.insertBefore(element, this.textContainer.firstChild);
+  }
+
+  /**
+   * フェードインアニメーションを開始
+   * @param {HTMLElement} element - アニメーションする要素
+   */
+  startFadeInAnimation(element) {
+    setTimeout(() => {
+      element.classList.remove('fade-in');
+    }, 10);
+  }
+
+  /**
+   * 表示中のテキストを追跡
+   * @param {HTMLElement} element - 追跡する要素
+   */
+  trackDisplayedText(element) {
+    this.displayedTexts.unshift({
+      id: element.id,
+      element: element,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * 最大表示数を超えた場合の古いテキスト削除
+   */
+  enforceMaxTexts() {
+    while (this.displayedTexts.length > this.maxTexts) {
+      this.removeOldestText();
+    }
+  }
+
+  /**
+   * 最も古いテキストを削除
+   */
+  removeOldestText() {
+    if (this.displayedTexts.length === 0) return;
+
+    const oldest = this.displayedTexts.pop();
+    oldest.element.classList.add('removing');
+
+    setTimeout(() => {
+      if (oldest.element.parentNode) {
+        oldest.element.parentNode.removeChild(oldest.element);
+      }
+    }, 300);
+  }
+
+  /**
+   * Slack表示エラーハンドリング
+   * @param {Error} error - エラーオブジェクト
+   * @param {string} text - 元のテキスト
+   * @param {Object} metadata - 元のメタデータ
+   */
+  handleSlackDisplayError(error, text, metadata) {
+    console.error('Slackメッセージ表示エラー:', error);
+    console.error('エラー詳細:', { text, metadata, stack: error.stack });
+
+    // フォールバック: 通常のテキスト表示
+    try {
+      const fallbackText = `${metadata?.user || 'Unknown'}: ${text || 'エラー'}`;
+      this.addDisplayText(fallbackText);
+    } catch (fallbackError) {
+      console.error('フォールバック表示もエラー:', fallbackError);
+    }
+  }
+
+  /**
+   * IPCメッセージリスナーを初期化
+   */
+  initializeIPC() {
+    if (typeof require !== 'undefined') {
+      const { ipcRenderer } = require('electron');
+
+      // Slackメッセージデータを受信
+      ipcRenderer.on('display-slack-message-data', (event, data) => {
+        const { text, metadata } = data;
+        this.displaySlackMessage(text, metadata);
+      });
+
+      // 通常テキストデータを受信
+      ipcRenderer.on('display-text-data', (event, text) => {
+        this.updateDisplayText(text);
+      });
+    }
+  }
+
+  /**
+   * テスト用の初期表示をクリア
+   */
+  clearTestDisplay() {
+    setTimeout(() => {
+      this.clearAllTexts();
+    }, 1000);
+  }
+}
+
+// グローバル関数（後方互換性のため）
+let displayManager;
+
+function updateDisplayText(text) {
+  if (displayManager) {
+    displayManager.updateDisplayText(text);
+  }
+}
+
+function displaySlackMessage(text, metadata) {
+  if (displayManager) {
+    displayManager.displaySlackMessage(text, metadata);
+  }
+}
+
+// 初期化
+document.addEventListener('DOMContentLoaded', () => {
+  displayManager = new DisplayManager();
+});
