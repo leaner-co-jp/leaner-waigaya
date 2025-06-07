@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <title>Text Control Panel</title>
-  <link rel="stylesheet" href="styles/control.css">
+  <link rel="stylesheet" href="./control.css">
 </head>
 <body>
   <div class="container">
     <h1>📺 テキスト表示コントロール</h1>
-    
+
     <!-- 初回設定画面 -->
     <div class="setup-wizard" id="setupWizard" style="display: none;">
       <div class="welcome-card">
         <h2>🚀 セットアップへようこそ</h2>
         <p>Slackメッセージを透過ウィンドウに表示するための設定を行います。</p>
-        
+
         <div class="setup-steps">
           <div class="step-item">
             <div class="step-number">1</div>
@@ -24,7 +24,7 @@
               <button class="step-button" onclick="toggleSetupGuide()">📖 詳細な手順を見る</button>
             </div>
           </div>
-          
+
           <div class="step-item">
             <div class="step-number">2</div>
             <div class="step-content">
@@ -33,7 +33,7 @@
               <button class="step-button" onclick="scrollToTokenInput()">🔑 トークン入力へ</button>
             </div>
           </div>
-          
+
           <div class="step-item">
             <div class="step-number">3</div>
             <div class="step-content">
@@ -44,7 +44,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 通常運用画面 -->
     <div class="dashboard" id="dashboard" style="display: none;">
       <div class="dashboard-grid">
@@ -53,7 +53,7 @@
           <div class="status stopped" id="status">停止中</div>
           <div class="queue-count">キュー: <span id="queueCount">0</span>件</div>
         </div>
-        
+
         <div class="slack-card">
           <h3>💬 Slack連携</h3>
           <div class="slack-status connected" id="slackStatus">接続中</div>
@@ -62,7 +62,7 @@
             <button class="small-btn" onclick="showSlackSettings()">⚙️ 設定</button>
           </div>
         </div>
-        
+
         <div class="controls-card">
           <h3>🎮 クイックコントロール</h3>
           <div class="quick-controls">
@@ -73,14 +73,14 @@
         </div>
       </div>
     </div>
-    
+
     <div class="section slack-settings" id="slackSettings">
       <div class="section-header">
         <h2>💬 Slack連携設定</h2>
         <button class="collapse-btn" id="slackCollapseBtn" onclick="toggleSlackSettings()">▼</button>
       </div>
       <div class="section-content" id="slackContent">
-      
+
       <div class="usage-guide">
         <h3>🔧 設定手順</h3>
         <ol>
@@ -114,11 +114,11 @@
           <li><strong>自動表示</strong>: 「自動追加: ON」でSlackメッセージが自動でテキスト表示される</li>
         </ol>
       </div>
-      
+
       <div class="slack-status" id="slackStatus">
         未接続
       </div>
-      
+
       <div class="debug-info" id="debugInfo" style="display: none;">
         <h4>🔍 デバッグ情報</h4>
         <div id="debugLog"></div>
@@ -170,20 +170,20 @@
         <button id="addAndStartBtn">追加して再生開始</button>
       </div>
     </div>
-    
+
     <div class="section">
       <h2>表示設定</h2>
       <div class="settings">
         <label for="displayTime">表示時間:</label>
         <input type="number" id="displayTime" value="3" min="1" max="60">
         <span>秒</span>
-        
+
         <label for="fadeTime">フェード時間:</label>
         <input type="number" id="fadeTime" value="0.5" min="0" max="5" step="0.1">
         <span>秒</span>
       </div>
     </div>
-    
+
     <div class="section">
       <h2>再生コントロール</h2>
       <div class="controls">
@@ -193,7 +193,7 @@
         <button id="clearQueueBtn">キューをクリア</button>
       </div>
     </div>
-    
+
     <div class="section">
       <h2>テキストキュー</h2>
       <div class="queue-list" id="queueList">
@@ -202,6 +202,6 @@
     </div>
   </div>
 
-  <script src="control.js"></script>
+  <script src="./control.js"></script>
 </body>
 </html>

@@ -1,37 +1,41 @@
 const { app, BrowserWindow, ipcMain, safeStorage } = require("electron")
 const path = require("path")
 const fs = require("fs")
-const SlackWatcher = require("./slack-client")
+const SlackWatcher = require("./control/slack-client")
 
 let mainWindow
 let controlWindow
 let slackWatcher
 
 // 設定ファイルのパス
-const configPath = path.join(app.getPath('userData'), 'slack-config.json')
+const configPath = path.join(app.getPath("userData"), "slack-config.json")
 
 // 設定を保存
 function saveConfig(config) {
   try {
     const configToSave = { ...config }
-    
+
     // トークンを暗号化して保存
     if (safeStorage.isEncryptionAvailable()) {
       if (config.botToken) {
-        configToSave.botToken = safeStorage.encryptString(config.botToken).toString('base64')
+        configToSave.botToken = safeStorage
+          .encryptString(config.botToken)
+          .toString("base64")
         configToSave._botTokenEncrypted = true
       }
       if (config.appToken) {
-        configToSave.appToken = safeStorage.encryptString(config.appToken).toString('base64')
+        configToSave.appToken = safeStorage
+          .encryptString(config.appToken)
+          .toString("base64")
         configToSave._appTokenEncrypted = true
       }
     }
-    
+
     fs.writeFileSync(configPath, JSON.stringify(configToSave, null, 2))
-    console.log('📁 設定を保存しました:', configPath)
+    console.log("📁 設定を保存しました:", configPath)
     return true
   } catch (error) {
-    console.error('❌ 設定保存エラー:', error)
+    console.error("❌ 設定保存エラー:", error)
     return false
   }
 }
@@ -40,39 +44,43 @@ function saveConfig(config) {
 function loadConfig() {
   try {
     if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
-      
+      const config = JSON.parse(fs.readFileSync(configPath, "utf8"))
+
       // 暗号化されたトークンを復号化
       if (safeStorage.isEncryptionAvailable()) {
         if (config._botTokenEncrypted && config.botToken) {
           try {
-            config.botToken = safeStorage.decryptString(Buffer.from(config.botToken, 'base64'))
+            config.botToken = safeStorage.decryptString(
+              Buffer.from(config.botToken, "base64")
+            )
             delete config._botTokenEncrypted
           } catch (error) {
-            console.error('Bot Token復号化エラー:', error)
-            config.botToken = ''
+            console.error("Bot Token復号化エラー:", error)
+            config.botToken = ""
           }
         }
         if (config._appTokenEncrypted && config.appToken) {
           try {
-            config.appToken = safeStorage.decryptString(Buffer.from(config.appToken, 'base64'))
+            config.appToken = safeStorage.decryptString(
+              Buffer.from(config.appToken, "base64")
+            )
             delete config._appTokenEncrypted
           } catch (error) {
-            console.error('App Token復号化エラー:', error)
-            config.appToken = ''
+            console.error("App Token復号化エラー:", error)
+            config.appToken = ""
           }
         }
       }
-      
-      console.log('📁 設定を読み込みました:', {
+
+      console.log("📁 設定を読み込みました:", {
         ...config,
-        botToken: config.botToken ? '***LOADED***' : '',
-        appToken: config.appToken ? '***LOADED***' : ''
+        botToken: config.botToken ? "***LOADED***" : "",
+        appToken: config.appToken ? "***LOADED***" : "",
       })
       return config
     }
   } catch (error) {
-    console.error('❌ 設定読み込みエラー:', error)
+    console.error("❌ 設定読み込みエラー:", error)
   }
   return null
 }
@@ -92,7 +100,16 @@ function createMainWindow() {
     },
   })
 
-  mainWindow.loadFile("display.html")
+  // 開発環境とプロダクション環境の判定
+  const isDev = process.env.NODE_ENV === "development"
+
+  if (isDev) {
+    // 開発環境: Viteサーバーから読み込み
+    mainWindow.loadURL("http://localhost:5173/display/display.html")
+  } else {
+    // プロダクション環境: ビルドされたファイルから読み込み
+    mainWindow.loadFile(path.join(__dirname, "dist/display.html"))
+  }
 
   mainWindow.on("closed", () => {
     mainWindow = null
@@ -109,7 +126,16 @@ function createControlWindow() {
     },
   })
 
-  controlWindow.loadFile("control.html")
+  // 開発環境とプロダクション環境の判定
+  const isDev = process.env.NODE_ENV === "development"
+
+  if (isDev) {
+    // 開発環境: Viteサーバーから読み込み
+    controlWindow.loadURL("http://localhost:5173/control/control.html")
+  } else {
+    // プロダクション環境: ビルドされたファイルから読み込み
+    controlWindow.loadFile(path.join(__dirname, "dist/control.html"))
+  }
 
   controlWindow.on("closed", () => {
     controlWindow = null
@@ -122,11 +148,11 @@ app.whenReady().then(() => {
 
   // Slack Watcher初期化
   slackWatcher = new SlackWatcher()
-  
+
   // 保存された設定があれば読み込み
   const savedConfig = loadConfig()
   if (savedConfig) {
-    console.log('🔧 初期化時に保存設定を読み込み')
+    console.log("🔧 初期化時に保存設定を読み込み")
     slackWatcher.updateConfig(savedConfig)
   }
 
@@ -161,14 +187,14 @@ ipcMain.on("display-text", (event, text) => {
   if (mainWindow) {
     if (text && text.trim()) {
       // テキストがある場合は最前面に表示
-      mainWindow.setAlwaysOnTop(true, 'screen-saver')
+      mainWindow.setAlwaysOnTop(true, "screen-saver")
     } else {
       // テキストが空の場合は最前面から外す
       mainWindow.setAlwaysOnTop(false)
     }
-    
+
     // データをレンダラープロセスに送信
-    mainWindow.webContents.send('display-text-data', text)
+    mainWindow.webContents.send("display-text-data", text)
   }
 })
 
@@ -183,10 +209,10 @@ ipcMain.on("set-always-on-top", (event, alwaysOnTop) => {
 ipcMain.on("display-slack-message", (event, data) => {
   if (mainWindow) {
     // Slackメッセージの場合は最前面に表示
-    mainWindow.setAlwaysOnTop(true, 'screen-saver')
-    
+    mainWindow.setAlwaysOnTop(true, "screen-saver")
+
     // データをレンダラープロセスに送信
-    mainWindow.webContents.send('display-slack-message-data', data)
+    mainWindow.webContents.send("display-slack-message-data", data)
   }
 })
 
@@ -194,23 +220,23 @@ ipcMain.on("display-slack-message", (event, data) => {
 ipcMain.handle("slack-connect", async (event, config) => {
   try {
     // 保存された設定も含めて読み込み
-    const savedConfig = loadConfig();
+    const savedConfig = loadConfig()
     const mergedConfig = {
       ...config,
-      channels: savedConfig?.channels || []
-    };
-    
-    console.log('🔧 Slack接続設定:', {
+      channels: savedConfig?.channels || [],
+    }
+
+    console.log("🔧 Slack接続設定:", {
       ...mergedConfig,
-      botToken: mergedConfig.botToken ? '***' : '',
-      appToken: mergedConfig.appToken ? '***' : ''
-    });
-    
-    slackWatcher.updateConfig(mergedConfig);
-    await slackWatcher.connect();
-    return { success: true };
+      botToken: mergedConfig.botToken ? "***" : "",
+      appToken: mergedConfig.appToken ? "***" : "",
+    })
+
+    slackWatcher.updateConfig(mergedConfig)
+    await slackWatcher.connect()
+    return { success: true }
   } catch (error) {
-    return { success: false, error: error.message };
+    return { success: false, error: error.message }
   }
 })
 
