@@ -187,15 +187,22 @@ app.on("activate", () => {
   }
 })
 
+// 最前面表示の状態管理
+let isAlwaysOnTopManuallySet = false
+
 // IPC通信の設定
 ipcMain.on("display-text", (event, text) => {
   if (mainWindow) {
     if (text && text.trim()) {
-      // テキストがある場合は最前面に表示
-      mainWindow.setAlwaysOnTop(true, "screen-saver")
+      // テキストがある場合は最前面に表示（手動設定されていない場合のみ）
+      if (!isAlwaysOnTopManuallySet) {
+        mainWindow.setAlwaysOnTop(true, "screen-saver")
+      }
     } else {
-      // テキストが空の場合は最前面から外す
-      mainWindow.setAlwaysOnTop(false)
+      // テキストが空の場合は最前面から外す（手動設定されていない場合のみ）
+      if (!isAlwaysOnTopManuallySet) {
+        mainWindow.setAlwaysOnTop(false)
+      }
     }
 
     // データをレンダラープロセスに送信
@@ -206,15 +213,25 @@ ipcMain.on("display-text", (event, text) => {
 // 最前面表示の制御
 ipcMain.on("set-always-on-top", (event, alwaysOnTop) => {
   if (mainWindow) {
+    console.log(`🔧 最前面表示を手動設定: ${alwaysOnTop}`)
     mainWindow.setAlwaysOnTop(alwaysOnTop)
+    isAlwaysOnTopManuallySet = true
+
+    // 一定時間後に手動設定フラグをリセット（次のメッセージで自動制御を再開）
+    setTimeout(() => {
+      isAlwaysOnTopManuallySet = false
+      console.log("🔧 最前面表示の手動設定をリセット")
+    }, 5000) // 5秒後にリセット
   }
 })
 
 // Slackメッセージ表示
 ipcMain.on("display-slack-message", (event, data) => {
   if (mainWindow) {
-    // Slackメッセージの場合は最前面に表示
-    mainWindow.setAlwaysOnTop(true, "screen-saver")
+    // Slackメッセージの場合は最前面に表示（手動設定されていない場合のみ）
+    if (!isAlwaysOnTopManuallySet) {
+      mainWindow.setAlwaysOnTop(true, "screen-saver")
+    }
 
     // データをレンダラープロセスに送信
     mainWindow.webContents.send("display-slack-message-data", data)
