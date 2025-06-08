@@ -38,65 +38,112 @@
       <!-- Slack設定ダイアログ用テンプレート（非表示） -->
       <template id="slackSettingsDialogTemplate">
         <div class="slack-dialog-inner">
-          <button class="close-dialog-btn">閉じる</button>
+          <button
+            class="close-dialog-btn bg-gray-300 text-gray-800 rounded px-3 py-1 hover:bg-gray-400 mb-4"
+          >
+            閉じる
+          </button>
           <div class="slack-config">
-            <!-- Bot/App Token入力・接続ボタン・チャンネル検索・追加・監視リスト・デバッグ・usageGuide などをここに移動 -->
-            <div style="margin-bottom: 15px">
-              <label for="botToken">Bot Token (xoxb-):</label>
+            <div class="mb-4">
+              <label for="botToken" class="block mb-1 font-semibold"
+                >Bot Token (xoxb-):</label
+              >
               <input
                 type="password"
                 id="botToken"
                 placeholder="xoxb-your-bot-token"
-                style="width: 300px"
+                class="border rounded px-3 py-2 mb-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <div style="margin-bottom: 15px">
-              <label for="appToken">App Token (xapp-):</label>
+            <div class="mb-4">
+              <label for="appToken" class="block mb-1 font-semibold"
+                >App Token (xapp-):</label
+              >
               <input
                 type="password"
                 id="appToken"
                 placeholder="xapp-your-app-token"
-                style="width: 300px"
+                class="border rounded px-3 py-2 mb-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <div class="controls">
-              <button id="connectSlackBtn">Slack接続</button>
-            </div>
-            <div style="margin-bottom: 15px">
-              <label for="channelSearch">チャンネル検索:</label>
-              <input
-                type="text"
-                id="channelSearch"
-                placeholder="チャンネル名で検索..."
-                style="width: 200px"
-                disabled
-              />
-              <button id="loadChannelsBtn" disabled style="margin-left: 10px">
-                チャンネル一覧取得
+            <div class="controls mb-4">
+              <button
+                id="connectSlackBtn"
+                class="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-800 mr-2 mb-2"
+              >
+                Slack接続
               </button>
             </div>
-            <div style="margin-bottom: 15px">
-              <label for="channelSelect">監視チャンネル:</label>
-              <select id="channelSelect" style="width: 300px" disabled size="3">
+            <div class="mb-4">
+              <label for="channelSearch" class="block mb-1 font-semibold"
+                >チャンネル検索:</label
+              >
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  id="channelSearch"
+                  placeholder="チャンネル名で検索..."
+                  class="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled
+                />
+                <button
+                  id="loadChannelsBtn"
+                  disabled
+                  class="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-800"
+                >
+                  チャンネル一覧取得
+                </button>
+              </div>
+            </div>
+            <div class="mb-4">
+              <label for="channelSelect" class="block mb-1 font-semibold"
+                >監視チャンネル:</label
+              >
+              <select
+                id="channelSelect"
+                class="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled
+                size="3"
+              >
                 <option value="">先にSlackに接続してください</option>
               </select>
             </div>
-            <div class="controls">
-              <button id="addChannelBtn">チャンネル追加</button>
-              <button id="clearConfigBtn" style="background: #dc3545">
+            <div class="controls mb-4 flex flex-wrap gap-2">
+              <button
+                id="addChannelBtn"
+                class="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-800"
+              >
+                チャンネル追加
+              </button>
+              <button
+                id="clearConfigBtn"
+                class="bg-red-600 text-white rounded px-4 py-2 hover:bg-red-800"
+              >
                 設定クリア
               </button>
-              <button onclick="toggleDebug()" style="background: #6c757d">
+              <button
+                onclick="toggleDebug()"
+                class="bg-gray-600 text-white rounded px-4 py-2 hover:bg-gray-800"
+              >
                 デバッグ表示
               </button>
             </div>
             <div class="debug-info" id="debugInfo" style="display: none">
-              <h4>🔍 デバッグ情報</h4>
-              <div id="debugLog"></div>
-              <button onclick="clearDebugLog()" style="margin-top: 10px">
+              <h4 class="font-bold mb-2">🔍 デバッグ情報</h4>
+              <div
+                id="debugLog"
+                class="bg-gray-100 border border-gray-300 rounded p-2 mb-2 text-xs h-32 overflow-y-auto"
+              ></div>
+              <button
+                onclick="clearDebugLog()"
+                class="bg-gray-400 text-white rounded px-3 py-1 hover:bg-gray-600 mr-2 mb-2"
+              >
                 ログクリア
               </button>
-              <button onclick="toggleDebug()" style="margin-top: 10px">
+              <button
+                onclick="toggleDebug()"
+                class="bg-gray-600 text-white rounded px-3 py-1 hover:bg-gray-800 mb-2"
+              >
                 デバッグ表示切替
               </button>
             </div>
