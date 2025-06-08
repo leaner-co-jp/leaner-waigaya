@@ -456,3 +456,48 @@ button:hover {
 .section-content.collapsed {
   max-height: 0 !important;
 }
+
+/* ダイアログ背景（外側） */
+#slackSettingsDialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ダイアログ本体 */
+.slack-dialog-inner {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+  padding: 32px 24px;
+  max-width: 600px;
+  width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.close-dialog-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: #007cba;
+  color: #fff;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  z-index: 1;
+}
+
+.close-dialog-btn:hover {
+  background: #005a8b;
+}

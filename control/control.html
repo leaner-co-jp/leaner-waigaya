@@ -24,89 +24,14 @@
           </div>
           <div id="watchedChannelList"></div>
         </div>
-        <div class="section-content" id="slackContent">
-          <button id="toggleUsageGuideBtn" style="margin-bottom: 10px">
-            設定手順を表示
-          </button>
-          <div class="usage-guide" id="usageGuide" style="display: none">
-            <h3>🔧 設定手順</h3>
-            <ol>
-              <li>
-                <strong>Slack Appを作成</strong>
-                <ul>
-                  <li>
-                    <a href="https://api.slack.com/apps" target="_blank"
-                      >api.slack.com/apps</a
-                    >
-                    でアプリを作成
-                  </li>
-                  <li>
-                    <strong>「OAuth & Permissions」</strong>で以下のBot Token
-                    Scopesを追加:
-                    <ul>
-                      <li><code>channels:read</code> - チャンネル一覧取得</li>
-                      <li>
-                        <code>groups:read</code> -
-                        プライベートチャンネル読み取り
-                      </li>
-                      <li>
-                        <code>channels:history</code> -
-                        チャンネルメッセージ読み取り
-                      </li>
-                      <li><code>users:read</code> - ユーザー情報読み取り</li>
-                    </ul>
-                  </li>
-                  <li>
-                    <strong>「Socket Mode」</strong>を有効化してApp Tokenを生成
-                  </li>
-                  <li>
-                    <strong>「Event Subscriptions」</strong>を有効化:
-                    <ul>
-                      <li>「Enable Events」をONにする</li>
-                      <li>「Subscribe to bot events」で以下を追加:</li>
-                      <li>
-                        <code>message.channels</code> -
-                        パブリックチャンネルのメッセージ ⚠️必須
-                      </li>
-                      <li>
-                        <code>message.groups</code> -
-                        プライベートチャンネルのメッセージ（任意）
-                      </li>
-                      <li>
-                        <code>message.im</code> - ダイレクトメッセージ（任意）
-                      </li>
-                    </ul>
-                  </li>
-                  <li>ワークスペースにアプリをインストール</li>
-                  <li>Bot Token (xoxb-) と App Token (xapp-) を取得</li>
-                </ul>
-              </li>
-              <li>
-                <strong>アプリに接続</strong>:
-                上記トークンを入力し「Slack接続」をクリック
-              </li>
-              <li>
-                <strong>チャンネル監視</strong>:
-                監視したいチャンネルを選択し「チャンネル追加」
-              </li>
-              <li>
-                <strong>自動表示</strong>: 「自動追加:
-                ON」でSlackメッセージが自動でテキスト表示される
-              </li>
-            </ol>
-          </div>
+      </div>
 
-          <div class="debug-info" id="debugInfo" style="display: none">
-            <h4>🔍 デバッグ情報</h4>
-            <div id="debugLog"></div>
-            <button onclick="clearDebugLog()" style="margin-top: 10px">
-              ログクリア
-            </button>
-            <button onclick="toggleDebug()" style="margin-top: 10px">
-              デバッグ表示切替
-            </button>
-          </div>
+      <!-- Slack設定ダイアログ用テンプレート（非表示） -->
+      <template id="slackSettingsDialogTemplate">
+        <div class="slack-dialog-inner">
+          <button class="close-dialog-btn">閉じる</button>
           <div class="slack-config">
+            <!-- Bot/App Token入力・接続ボタン・チャンネル検索・追加・監視リスト・デバッグ・usageGuide などをここに移動 -->
             <div style="margin-bottom: 15px">
               <label for="botToken">Bot Token (xoxb-):</label>
               <input
@@ -156,9 +81,24 @@
                 デバッグ表示
               </button>
             </div>
+            <div class="debug-info" id="debugInfo" style="display: none">
+              <h4>🔍 デバッグ情報</h4>
+              <div id="debugLog"></div>
+              <button onclick="clearDebugLog()" style="margin-top: 10px">
+                ログクリア
+              </button>
+              <button onclick="toggleDebug()" style="margin-top: 10px">
+                デバッグ表示切替
+              </button>
+            </div>
+            <div
+              class="usage-guide"
+              id="usageGuide"
+              style="display: block; margin-top: 24px"
+            ></div>
           </div>
         </div>
-      </div>
+      </template>
 
       <div class="section">
         <div class="controls">
