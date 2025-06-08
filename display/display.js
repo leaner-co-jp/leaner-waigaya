@@ -315,7 +315,7 @@ class DisplayManager {
         setTimeout(() => {
           const minHeight = 150
           const maxHeightLimit = 800
-          const scrollHeight = this.textContainer.scrollHeight
+          const scrollHeight = this.textContainer.scrollHeight + 60
 
           const contentHeight = Math.max(
             minHeight,
