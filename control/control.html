@@ -1,172 +1,197 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <title>Text Control Panel</title>
-  <link rel="stylesheet" href="./control.css">
-</head>
-<body>
-  <div class="container">
-    <h1>📺 テキスト表示コントロール</h1>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Text Control Panel</title>
+    <link rel="stylesheet" href="./control.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>📺 テキスト表示コントロール</h1>
 
-    <!-- 初回設定画面 -->
-    <div class="setup-wizard" id="setupWizard" style="display: none;">
-      <div class="welcome-card">
-        <h2>🚀 セットアップへようこそ</h2>
-        <p>Slackメッセージを透過ウィンドウに表示するための設定を行います。</p>
-
-        <div class="setup-steps">
-          <div class="step-item">
-            <div class="step-number">1</div>
-            <div class="step-content">
-              <h3>Slack Appを作成</h3>
-              <p>まず、Slackアプリを作成してトークンを取得してください。</p>
-              <button class="step-button" onclick="toggleSetupGuide()">📖 詳細な手順を見る</button>
-            </div>
-          </div>
-
-          <div class="step-item">
-            <div class="step-number">2</div>
-            <div class="step-content">
-              <h3>トークンを入力</h3>
-              <p>取得したBot TokenとApp Tokenを下記に入力してください。</p>
-              <button class="step-button" onclick="scrollToTokenInput()">🔑 トークン入力へ</button>
-            </div>
-          </div>
-
-          <div class="step-item">
-            <div class="step-number">3</div>
-            <div class="step-content">
-              <h3>チャンネル選択</h3>
-              <p>監視したいSlackチャンネルを選択して完了です。</p>
-            </div>
-          </div>
+      <div class="section slack-settings" id="slackSettings">
+        <div class="section-header">
+          <h2>💬 Slack連携設定</h2>
         </div>
-      </div>
-    </div>
-
-    <!-- 通常運用画面 -->
-    <div class="dashboard" id="dashboard" style="display: none;">
-      <div class="dashboard-grid">
         <div class="slack-card">
           <h3>💬 Slack連携</h3>
           <div class="slack-status connected" id="slackStatus">接続中</div>
           <div class="watched-summary">
             監視中: <span id="channelCount">0</span>チャンネル
-            <button class="small-btn" onclick="showSlackSettings()">⚙️ 設定</button>
+            <button class="small-btn" onclick="showSlackSettings()">
+              ⚙️ 設定
+            </button>
+          </div>
+        </div>
+        <div class="section-content" id="slackContent">
+          <button id="toggleUsageGuideBtn" style="margin-bottom: 10px">
+            設定手順を表示
+          </button>
+          <div class="usage-guide" id="usageGuide" style="display: none">
+            <h3>🔧 設定手順</h3>
+            <ol>
+              <li>
+                <strong>Slack Appを作成</strong>
+                <ul>
+                  <li>
+                    <a href="https://api.slack.com/apps" target="_blank"
+                      >api.slack.com/apps</a
+                    >
+                    でアプリを作成
+                  </li>
+                  <li>
+                    <strong>「OAuth & Permissions」</strong>で以下のBot Token
+                    Scopesを追加:
+                    <ul>
+                      <li><code>channels:read</code> - チャンネル一覧取得</li>
+                      <li>
+                        <code>groups:read</code> -
+                        プライベートチャンネル読み取り
+                      </li>
+                      <li>
+                        <code>channels:history</code> -
+                        チャンネルメッセージ読み取り
+                      </li>
+                      <li><code>users:read</code> - ユーザー情報読み取り</li>
+                    </ul>
+                  </li>
+                  <li>
+                    <strong>「Socket Mode」</strong>を有効化してApp Tokenを生成
+                  </li>
+                  <li>
+                    <strong>「Event Subscriptions」</strong>を有効化:
+                    <ul>
+                      <li>「Enable Events」をONにする</li>
+                      <li>「Subscribe to bot events」で以下を追加:</li>
+                      <li>
+                        <code>message.channels</code> -
+                        パブリックチャンネルのメッセージ ⚠️必須
+                      </li>
+                      <li>
+                        <code>message.groups</code> -
+                        プライベートチャンネルのメッセージ（任意）
+                      </li>
+                      <li>
+                        <code>message.im</code> - ダイレクトメッセージ（任意）
+                      </li>
+                    </ul>
+                  </li>
+                  <li>ワークスペースにアプリをインストール</li>
+                  <li>Bot Token (xoxb-) と App Token (xapp-) を取得</li>
+                </ul>
+              </li>
+              <li>
+                <strong>アプリに接続</strong>:
+                上記トークンを入力し「Slack接続」をクリック
+              </li>
+              <li>
+                <strong>チャンネル監視</strong>:
+                監視したいチャンネルを選択し「チャンネル追加」
+              </li>
+              <li>
+                <strong>自動表示</strong>: 「自動追加:
+                ON」でSlackメッセージが自動でテキスト表示される
+              </li>
+            </ol>
+          </div>
+
+          <div class="slack-status" id="slackStatus">未接続</div>
+
+          <div class="debug-info" id="debugInfo" style="display: none">
+            <h4>🔍 デバッグ情報</h4>
+            <div id="debugLog"></div>
+            <button onclick="clearDebugLog()" style="margin-top: 10px">
+              ログクリア
+            </button>
+            <button onclick="toggleDebug()" style="margin-top: 10px">
+              デバッグ表示切替
+            </button>
+          </div>
+          <div class="slack-config">
+            <div style="margin-bottom: 15px">
+              <label for="botToken">Bot Token (xoxb-):</label>
+              <input
+                type="password"
+                id="botToken"
+                placeholder="xoxb-your-bot-token"
+                style="width: 300px"
+              />
+            </div>
+            <div style="margin-bottom: 15px">
+              <label for="appToken">App Token (xapp-):</label>
+              <input
+                type="password"
+                id="appToken"
+                placeholder="xapp-your-app-token"
+                style="width: 300px"
+              />
+            </div>
+            <div style="margin-bottom: 15px">
+              <label for="channelSearch">チャンネル検索:</label>
+              <input
+                type="text"
+                id="channelSearch"
+                placeholder="チャンネル名で検索..."
+                style="width: 200px"
+                disabled
+              />
+              <button id="loadChannelsBtn" disabled style="margin-left: 10px">
+                チャンネル一覧取得
+              </button>
+            </div>
+            <div style="margin-bottom: 15px">
+              <label for="channelSelect">監視チャンネル:</label>
+              <select id="channelSelect" style="width: 300px" disabled size="8">
+                <option value="">先にSlackに接続してください</option>
+              </select>
+            </div>
+            <div class="controls">
+              <button id="connectSlackBtn">Slack接続</button>
+              <button id="disconnectSlackBtn">切断</button>
+              <button id="addChannelBtn">チャンネル追加</button>
+              <button id="autoConnectBtn">起動時自動接続: ON</button>
+              <button id="saveConfigBtn">設定保存</button>
+              <button id="clearConfigBtn" style="background: #dc3545">
+                設定クリア
+              </button>
+              <button onclick="toggleDebug()" style="background: #6c757d">
+                デバッグ表示
+              </button>
+            </div>
+            <div id="watchedChannels" style="margin-top: 15px">
+              <strong>監視中のチャンネル:</strong>
+              <div id="channelList">なし</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="section slack-settings" id="slackSettings">
-      <div class="section-header">
-        <h2>💬 Slack連携設定</h2>
-        <button class="collapse-btn" id="slackCollapseBtn" onclick="toggleSlackSettings()">▼</button>
-      </div>
-      <div class="section-content" id="slackContent">
-
-      <div class="usage-guide">
-        <h3>🔧 設定手順</h3>
-        <ol>
-          <li><strong>Slack Appを作成</strong>
-            <ul>
-              <li><a href="https://api.slack.com/apps" target="_blank">api.slack.com/apps</a> でアプリを作成</li>
-              <li><strong>「OAuth & Permissions」</strong>で以下のBot Token Scopesを追加:
-                <ul>
-                  <li><code>channels:read</code> - チャンネル一覧取得</li>
-                  <li><code>groups:read</code> - プライベートチャンネル読み取り</li>
-                  <li><code>channels:history</code> - チャンネルメッセージ読み取り</li>
-                  <li><code>users:read</code> - ユーザー情報読み取り</li>
-                </ul>
-              </li>
-              <li><strong>「Socket Mode」</strong>を有効化してApp Tokenを生成</li>
-              <li><strong>「Event Subscriptions」</strong>を有効化:
-                <ul>
-                  <li>「Enable Events」をONにする</li>
-                  <li>「Subscribe to bot events」で以下を追加:</li>
-                  <li><code>message.channels</code> - パブリックチャンネルのメッセージ ⚠️必須</li>
-                  <li><code>message.groups</code> - プライベートチャンネルのメッセージ（任意）</li>
-                  <li><code>message.im</code> - ダイレクトメッセージ（任意）</li>
-                </ul>
-              </li>
-              <li>ワークスペースにアプリをインストール</li>
-              <li>Bot Token (xoxb-) と App Token (xapp-) を取得</li>
-            </ul>
-          </li>
-          <li><strong>アプリに接続</strong>: 上記トークンを入力し「Slack接続」をクリック</li>
-          <li><strong>チャンネル監視</strong>: 監視したいチャンネルを選択し「チャンネル追加」</li>
-          <li><strong>自動表示</strong>: 「自動追加: ON」でSlackメッセージが自動でテキスト表示される</li>
-        </ol>
-      </div>
-
-      <div class="slack-status" id="slackStatus">
-        未接続
-      </div>
-
-      <div class="debug-info" id="debugInfo" style="display: none;">
-        <h4>🔍 デバッグ情報</h4>
-        <div id="debugLog"></div>
-        <button onclick="clearDebugLog()" style="margin-top: 10px;">ログクリア</button>
-        <button onclick="toggleDebug()" style="margin-top: 10px;">デバッグ表示切替</button>
-      </div>
-      <div class="slack-config">
-        <div style="margin-bottom: 15px;">
-          <label for="botToken">Bot Token (xoxb-):</label>
-          <input type="password" id="botToken" placeholder="xoxb-your-bot-token" style="width: 300px;">
-        </div>
-        <div style="margin-bottom: 15px;">
-          <label for="appToken">App Token (xapp-):</label>
-          <input type="password" id="appToken" placeholder="xapp-your-app-token" style="width: 300px;">
-        </div>
-        <div style="margin-bottom: 15px;">
-          <label for="channelSearch">チャンネル検索:</label>
-          <input type="text" id="channelSearch" placeholder="チャンネル名で検索..." style="width: 200px;" disabled>
-          <button id="loadChannelsBtn" disabled style="margin-left: 10px;">チャンネル一覧取得</button>
-        </div>
-        <div style="margin-bottom: 15px;">
-          <label for="channelSelect">監視チャンネル:</label>
-          <select id="channelSelect" style="width: 300px;" disabled size="8">
-            <option value="">先にSlackに接続してください</option>
-          </select>
-        </div>
+      <div class="section">
         <div class="controls">
-          <button id="connectSlackBtn">Slack接続</button>
-          <button id="disconnectSlackBtn">切断</button>
-          <button id="addChannelBtn">チャンネル追加</button>
-          <button id="autoConnectBtn">起動時自動接続: ON</button>
-          <button id="saveConfigBtn">設定保存</button>
-          <button id="clearConfigBtn" style="background: #dc3545;">設定クリア</button>
-          <button onclick="toggleDebug()" style="background: #6c757d;">デバッグ表示</button>
+          <button id="addSampleMsgBtn">サンプルメッセージを追加</button>
         </div>
-        <div id="watchedChannels" style="margin-top: 15px;">
-          <strong>監視中のチャンネル:</strong>
-          <div id="channelList">なし</div>
+
+        <div class="settings">
+          <label for="displayTime">表示時間:</label>
+          <input type="number" id="displayTime" value="3" min="1" max="60" />
+          <span>秒</span>
+
+          <label for="fadeTime">フェード時間:</label>
+          <input
+            type="number"
+            id="fadeTime"
+            value="0.5"
+            min="0"
+            max="5"
+            step="0.1"
+          />
+          <span>秒</span>
         </div>
+
+        <div class="queue-list" id="queueList">キューは空です</div>
       </div>
     </div>
 
-    <div class="section">
-      <div class="controls">
-        <button id="addSampleMsgBtn">サンプルメッセージを追加</button>
-      </div>
-
-      <div class="settings">
-        <label for="displayTime">表示時間:</label>
-        <input type="number" id="displayTime" value="3" min="1" max="60">
-        <span>秒</span>
-
-        <label for="fadeTime">フェード時間:</label>
-        <input type="number" id="fadeTime" value="0.5" min="0" max="5" step="0.1">
-        <span>秒</span>
-      </div>
-
-      <div class="queue-list" id="queueList">
-        キューは空です
-      </div>
-    </div>
-  </div>
-
-  <script src="./control.js"></script>
-</body>
+    <script src="./control.js"></script>
+  </body>
 </html>

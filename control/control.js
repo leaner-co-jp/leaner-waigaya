@@ -8,13 +8,11 @@ class SlackIntegration {
     this.watchedChannelData = {} // { channelId: { name: 'channel-name', id: 'channelId' } }
     this.availableChannels = []
     this.debugVisible = false
-    this.isSetupMode = false // セットアップモードかどうか
 
     this.setupSlackListeners()
     this.loadSlackStatus()
     this.setupChannelSearch()
     this.setupDebugLogging()
-    this.initializeUI()
   }
 
   setupDebugLogging() {
@@ -257,9 +255,6 @@ class SlackIntegration {
 
         // 接続成功時に設定を保存
         await this.saveConfig()
-
-        // 設定が完了したらダッシュボードモードに切り替え
-        this.checkSetupStatus()
       } else {
         this.updateStatus(`接続エラー: ${result.error}`, "error")
       }
@@ -399,9 +394,6 @@ class SlackIntegration {
     await this.updateUI()
     // チャンネル追加時に設定を保存
     await this.saveConfig()
-
-    // チャンネル追加後にUI状態をチェック
-    this.checkSetupStatus()
   }
 
   async removeChannel(channelId) {
@@ -481,89 +473,6 @@ class SlackIntegration {
     status.className = "slack-status"
     if (type) {
       status.classList.add(type)
-    }
-  }
-
-  // UI初期化
-  initializeUI() {
-    this.checkSetupStatus()
-  }
-
-  // セットアップ状況をチェック
-  checkSetupStatus() {
-    const hasTokens =
-      document.getElementById("botToken").value &&
-      document.getElementById("appToken").value
-    const hasChannels = this.watchedChannels.length > 0
-
-    if (!hasTokens || !hasChannels) {
-      this.showSetupMode()
-    } else {
-      this.showDashboardMode()
-    }
-  }
-
-  // セットアップモードを表示
-  showSetupMode() {
-    this.isSetupMode = true
-    document.getElementById("setupWizard").style.display = "block"
-    document.getElementById("dashboard").style.display = "none"
-    document.getElementById("slackSettings").style.display = "block"
-
-    // Slack設定を展開状態にする
-    const content = document.getElementById("slackContent")
-    const collapseBtn = document.getElementById("slackCollapseBtn")
-    content.classList.remove("collapsed")
-    collapseBtn.classList.remove("collapsed")
-    collapseBtn.textContent = "▼"
-  }
-
-  // ダッシュボードモードを表示
-  showDashboardMode() {
-    this.isSetupMode = false
-    document.getElementById("setupWizard").style.display = "none"
-    document.getElementById("dashboard").style.display = "block"
-    document.getElementById("slackSettings").style.display = "block"
-
-    // Slack設定を折りたたみ状態にする
-    const content = document.getElementById("slackContent")
-    const collapseBtn = document.getElementById("slackCollapseBtn")
-    content.classList.add("collapsed")
-    collapseBtn.classList.add("collapsed")
-    collapseBtn.textContent = "▶"
-
-    this.updateDashboard()
-  }
-
-  // ダッシュボードの更新
-  updateDashboard() {
-    // チャンネル数の更新
-    const channelCount = document.getElementById("channelCount")
-    if (channelCount) {
-      channelCount.textContent = this.watchedChannels.length
-    }
-
-    // 監視中チャンネル名リストの表示
-    const dashboard = document.getElementById("dashboard")
-    let channelNamesElem = document.getElementById("dashboardChannelNames")
-    if (!channelNamesElem) {
-      channelNamesElem = document.createElement("div")
-      channelNamesElem.id = "dashboardChannelNames"
-      channelNamesElem.style.marginTop = "8px"
-      channelNamesElem.style.fontSize = "13px"
-      dashboard.querySelector(".slack-card").appendChild(channelNamesElem)
-    }
-    if (this.watchedChannels.length === 0) {
-      channelNamesElem.textContent = "（監視中のチャンネルなし）"
-    } else {
-      const names = this.watchedChannels.map((cid) => {
-        if (this.watchedChannelData[cid] && this.watchedChannelData[cid].name) {
-          return `#${this.watchedChannelData[cid].name}`
-        } else {
-          return `#${cid}`
-        }
-      })
-      channelNamesElem.textContent = names.join("、 ")
     }
   }
 }
@@ -792,29 +701,19 @@ document.addEventListener("DOMContentLoaded", () => {
     addSampleMessage()
   }
 
-  // テキストキューボタンのイベントリスナー設定
-  document.getElementById("addTextBtn").onclick = () => {
-    addText()
-  }
-
-  document.getElementById("addAndStartBtn").onclick = () => {
-    addAndStart()
-  }
-
-  document.getElementById("startQueueBtn").onclick = () => {
-    startQueue()
-  }
-
-  document.getElementById("stopQueueBtn").onclick = () => {
-    stopQueue()
-  }
-
-  document.getElementById("nextTextBtn").onclick = () => {
-    nextText()
-  }
-
-  document.getElementById("clearQueueBtn").onclick = () => {
-    clearQueue()
+  // 設定手順の折りたたみ/展開
+  const usageGuide = document.getElementById("usageGuide")
+  const toggleUsageGuideBtn = document.getElementById("toggleUsageGuideBtn")
+  if (toggleUsageGuideBtn && usageGuide) {
+    toggleUsageGuideBtn.onclick = () => {
+      if (usageGuide.style.display === "none") {
+        usageGuide.style.display = "block"
+        toggleUsageGuideBtn.textContent = "設定手順を隠す"
+      } else {
+        usageGuide.style.display = "none"
+        toggleUsageGuideBtn.textContent = "設定手順を表示"
+      }
+    }
   }
 })
 
