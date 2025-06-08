@@ -580,18 +580,6 @@ class TextQueue {
     this.updateUI()
   }
 
-  addText(text) {
-    if (text.trim()) {
-      this.queue.push({
-        id: Date.now(),
-        text: text.trim(),
-        timestamp: new Date().toLocaleTimeString(),
-        type: "text",
-      })
-      this.updateUI()
-    }
-  }
-
   addSlackMessage(messageData) {
     if (messageData.text && messageData.text.trim()) {
       const wasEmpty = this.queue.length === 0
@@ -605,46 +593,24 @@ class TextQueue {
         type: "slack",
       })
 
-      console.log("📋 Slackメッセージ追加後の状態:", {
-        queueLength: this.queue.length,
-        isPlaying: this.isPlaying,
-        wasEmpty: wasEmpty,
-      })
-
       this.updateUI()
 
       // Slackメッセージの場合は自動再生開始
       if (!this.isPlaying) {
-        console.log("🎬 Slackメッセージで自動再生を開始")
         this.startQueue()
       }
     }
   }
 
   startQueue() {
-    console.log("🎬 startQueue呼び出し:", {
-      queueLength: this.queue.length,
-      isPlaying: this.isPlaying,
-      currentIndex: this.currentIndex,
-    })
-
     if (this.queue.length === 0) {
-      console.log("⚠️ キューが空のため開始できません")
       return
     }
-
     this.isPlaying = true
     if (this.currentIndex === -1) {
       this.currentIndex = 0
     }
-
-    console.log("▶️ 再生開始:", {
-      currentIndex: this.currentIndex,
-      currentItem: this.queue[this.currentIndex],
-    })
-
     this.playNext()
-    this.updateStatus()
   }
 
   stopQueue() {
@@ -654,19 +620,7 @@ class TextQueue {
       this.currentTimer = null
     }
     this.sendToDisplay("")
-    this.updateStatus()
     this.updateUI()
-  }
-
-  nextText() {
-    if (this.currentTimer) {
-      clearTimeout(this.currentTimer)
-      this.currentTimer = null
-    }
-
-    if (this.isPlaying) {
-      this.playNext()
-    }
   }
 
   playNext() {
@@ -674,21 +628,17 @@ class TextQueue {
       this.stopQueue()
       return
     }
-
     const currentItem = this.queue[this.currentIndex]
     if (currentItem.type === "slack") {
-      // Slackメッセージの場合はメタデータも送信
       this.sendToDisplay(currentItem.text, {
         user: currentItem.user,
         userIcon: currentItem.userIcon,
         type: "slack",
       })
     } else {
-      // 通常のテキストの場合
       this.sendToDisplay(currentItem.text)
     }
     this.updateUI()
-
     this.currentTimer = setTimeout(() => {
       this.currentIndex++
       this.playNext()
@@ -716,13 +666,11 @@ class TextQueue {
   updateSettings() {
     const displayTimeInput = document.getElementById("displayTime")
     const fadeTimeInput = document.getElementById("fadeTime")
-
     this.displayTime = parseFloat(displayTimeInput.value) * 1000
     this.fadeTime = parseFloat(fadeTimeInput.value) * 1000
   }
 
   sendToDisplay(text, metadata = null) {
-    // IPCを使ってメインプロセス経由で表示ウィンドウにテキストを送信
     try {
       if (metadata) {
         ipcRenderer.send("display-slack-message", { text, metadata })
@@ -736,16 +684,13 @@ class TextQueue {
 
   updateUI() {
     const queueList = document.getElementById("queueList")
-
     if (this.queue.length === 0) {
       queueList.innerHTML = "キューは空です"
     } else {
       queueList.innerHTML = this.queue
         .map(
           (item, index) => `
-        <div class="queue-item ${
-          index === this.currentIndex && this.isPlaying ? "active" : ""
-        }">
+        <div class="queue-item">
           <div>
             <strong>${index + 1}.</strong> ${item.text}
             <small style="color: #666; margin-left: 10px;">(${
@@ -760,24 +705,10 @@ class TextQueue {
         )
         .join("")
     }
-
     // ダッシュボードのキュー数も更新
     const queueCount = document.getElementById("queueCount")
     if (queueCount) {
       queueCount.textContent = this.queue.length
-    }
-  }
-
-  updateStatus() {
-    const status = document.getElementById("status")
-    if (this.isPlaying) {
-      status.textContent = `再生中 (${this.currentIndex + 1}/${
-        this.queue.length
-      })`
-      status.className = "status playing"
-    } else {
-      status.textContent = "停止中"
-      status.className = "status stopped"
     }
   }
 }
@@ -890,44 +821,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("clearQueueBtn").onclick = () => {
     clearQueue()
   }
-})
-
-// UI関数
-function addText() {
-  const textarea = document.getElementById("newText")
-  textQueue.addText(textarea.value)
-  textarea.value = ""
-}
-
-function addAndStart() {
-  addText()
-  textQueue.startQueue()
-}
-
-function startQueue() {
-  textQueue.updateSettings()
-  textQueue.startQueue()
-}
-
-function stopQueue() {
-  textQueue.stopQueue()
-}
-
-function nextText() {
-  textQueue.nextText()
-}
-
-function clearQueue() {
-  textQueue.clearQueue()
-}
-
-// 設定変更時の更新
-document.getElementById("displayTime").addEventListener("change", () => {
-  textQueue.updateSettings()
-})
-
-document.getElementById("fadeTime").addEventListener("change", () => {
-  textQueue.updateSettings()
 })
 
 // デバッグ用UI関数
