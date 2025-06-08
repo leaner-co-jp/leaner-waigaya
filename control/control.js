@@ -705,11 +705,6 @@ class TextQueue {
         )
         .join("")
     }
-    // ダッシュボードのキュー数も更新
-    const queueCount = document.getElementById("queueCount")
-    if (queueCount) {
-      queueCount.textContent = this.queue.length
-    }
   }
 }
 
