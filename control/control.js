@@ -669,21 +669,6 @@ document.addEventListener("DOMContentLoaded", () => {
       addSampleMessage()
     }
   }
-
-  // 設定手順の折りたたみ/展開
-  const usageGuide = document.getElementById("usageGuide")
-  const toggleUsageGuideBtn = document.getElementById("toggleUsageGuideBtn")
-  if (toggleUsageGuideBtn && usageGuide) {
-    toggleUsageGuideBtn.onclick = () => {
-      if (usageGuide.style.display === "none") {
-        usageGuide.style.display = "block"
-        toggleUsageGuideBtn.textContent = "設定手順を隠す"
-      } else {
-        usageGuide.style.display = "none"
-        toggleUsageGuideBtn.textContent = "設定手順を表示"
-      }
-    }
-  }
 })
 
 // デバッグ用UI関数
