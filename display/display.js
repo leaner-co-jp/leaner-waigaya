@@ -111,7 +111,14 @@ class DisplayManager {
    */
   createTextElement(text, className) {
     const textItem = document.createElement("div")
-    textItem.className = className
+    // Tailwindクラスでスタイリング
+    textItem.className =
+      "whitespace-pre-wrap break-words transition-opacity transition-transform duration-500 ease-in-out opacity-100 translate-y-0 mb-1.5 p-2.5 rounded-lg bg-black/30 backdrop-blur-sm min-h-[40px] flex items-center" +
+      (className.includes("fade-in") ? " opacity-0 -translate-y-5" : "") +
+      (className.includes("fade-out") ? " opacity-0 translate-y-5" : "") +
+      (className.includes("removing")
+        ? " transition-all duration-300 opacity-0 -translate-y-12 scale-90 mb-[-60px]"
+        : "")
     textItem.textContent = text
     textItem.id = `text-${++this.textIdCounter}`
     return textItem
@@ -124,7 +131,9 @@ class DisplayManager {
    */
   createSlackMessageElement(safeData) {
     const messageItem = document.createElement("div")
-    messageItem.className = "text-item slack-message fade-in"
+    messageItem.className =
+      "whitespace-pre-wrap break-words transition-opacity transition-transform duration-500 ease-in-out opacity-100 translate-y-0 mb-1.5 min-h-[40px] flex items-start gap-2.5 p-3 rounded-xl bg-black/60 backdrop-blur-md" +
+      " fade-in opacity-0 -translate-y-5"
     messageItem.id = `text-${++this.textIdCounter}`
 
     // アバター画像
@@ -146,7 +155,7 @@ class DisplayManager {
    */
   createAvatarElement(userIcon) {
     const avatar = document.createElement("img")
-    avatar.className = "slack-avatar"
+    avatar.className = "w-8 h-8 rounded-md flex-shrink-0 mt-0.5"
     avatar.src = userIcon
     avatar.onerror = function () {
       this.src =
@@ -162,16 +171,18 @@ class DisplayManager {
    */
   createSlackContentElement(safeData) {
     const content = document.createElement("div")
-    content.className = "slack-content"
+    content.className = "flex-1 min-w-0"
 
     // ユーザー名
     const userDiv = document.createElement("div")
-    userDiv.className = "slack-user"
+    userDiv.className =
+      "text-sm text-[#00d4aa] font-semibold mb-1 drop-shadow-[1px_1px_2px_rgba(0,0,0,0.8)]"
     userDiv.textContent = safeData.user
 
     // メッセージテキスト
     const textDiv = document.createElement("div")
-    textDiv.className = "slack-text"
+    textDiv.className =
+      "text-lg text-white leading-snug drop-shadow-[2px_2px_4px_rgba(0,0,0,0.8)]"
     textDiv.textContent = safeData.text
 
     content.appendChild(userDiv)
