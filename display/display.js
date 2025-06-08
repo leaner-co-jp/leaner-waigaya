@@ -61,7 +61,9 @@ class DisplayManager {
             }
           }
           // 高さ再設定
-          this.updateWindowSize()
+          setTimeout(() => {
+            this.updateWindowSize()
+          }, 50)
         }, fadeTime)
       }, displayTime)
 
@@ -310,37 +312,24 @@ class DisplayManager {
       const hasContent = this.displayedTexts.length > 0
 
       if (hasContent) {
-        // DOM要素が完全にレンダリングされるまで少し待つ
         setTimeout(() => {
-          // コンテナ全体のサイズを基準にする
-          const containerRect = this.textContainer.getBoundingClientRect()
-
-          // パディングと最小/最大サイズを考慮
-          const padding = 40
           const minHeight = 150
           const maxHeightLimit = 800
-
-          // コンテナのscrollサイズも考慮
-          const scrollWidth = this.textContainer.scrollWidth
           const scrollHeight = this.textContainer.scrollHeight
 
           const contentHeight = Math.max(
             minHeight,
-            Math.min(
-              maxHeightLimit,
-              Math.max(containerRect.height, scrollHeight) + padding
-            )
+            Math.min(maxHeightLimit, scrollHeight)
           )
 
           console.log(
-            `🔧 ウィンドウサイズ更新: x${contentHeight} (コンテナ: ${containerRect.width}x${containerRect.height}, スクロール: ${scrollWidth}x${scrollHeight})`
+            `🔧 ウィンドウサイズ更新: x${contentHeight} (スクロール: x${scrollHeight})`
           )
           ipcRenderer.send("update-window-size", {
             height: Math.ceil(contentHeight),
           })
         }, 50)
       } else {
-        // テキストがない場合：デフォルトサイズに設定
         console.log("🔧 ウィンドウサイズ更新: デフォルトサイズ")
         ipcRenderer.send("update-window-size", { height: 150 })
       }
