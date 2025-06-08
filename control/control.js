@@ -451,18 +451,14 @@ class TextQueue {
   constructor() {
     this.queue = []
     this.currentIndex = -1
-    this.isPlaying = false
     this.currentTimer = null
     this.displayTime = 3000 // ms
     this.fadeTime = 500 // ms
-
     this.updateUI()
   }
 
   addSlackMessage(messageData) {
     if (messageData.text && messageData.text.trim()) {
-      const wasEmpty = this.queue.length === 0
-
       this.queue.push({
         id: Date.now(),
         text: messageData.text.trim(),
@@ -471,13 +467,13 @@ class TextQueue {
         timestamp: new Date().toLocaleTimeString(),
         type: "slack",
       })
-
       this.updateUI()
-
-      // Slackメッセージの場合は自動再生開始
-      if (!this.isPlaying) {
-        this.startQueue()
+      if (this.currentTimer) {
+        clearTimeout(this.currentTimer)
+        this.currentTimer = null
       }
+      this.currentIndex = this.queue.length - 1
+      this.playNext()
     }
   }
 
@@ -485,26 +481,15 @@ class TextQueue {
     if (this.queue.length === 0) {
       return
     }
-    this.isPlaying = true
     if (this.currentIndex === -1) {
       this.currentIndex = 0
     }
     this.playNext()
   }
 
-  stopQueue() {
-    this.isPlaying = false
-    if (this.currentTimer) {
-      clearTimeout(this.currentTimer)
-      this.currentTimer = null
-    }
-    this.sendToDisplay("")
-    this.updateUI()
-  }
-
   playNext() {
-    if (!this.isPlaying || this.currentIndex >= this.queue.length) {
-      this.stopQueue()
+    if (this.currentIndex >= this.queue.length) {
+      // 末尾まで再生したら何もしない
       return
     }
     const currentItem = this.queue[this.currentIndex]
@@ -522,24 +507,6 @@ class TextQueue {
       this.currentIndex++
       this.playNext()
     }, this.displayTime + this.fadeTime)
-  }
-
-  clearQueue() {
-    this.stopQueue()
-    this.queue = []
-    this.currentIndex = -1
-    this.updateUI()
-  }
-
-  removeItem(id) {
-    const index = this.queue.findIndex((item) => item.id === id)
-    if (index !== -1) {
-      this.queue.splice(index, 1)
-      if (this.currentIndex >= index) {
-        this.currentIndex--
-      }
-      this.updateUI()
-    }
   }
 
   updateSettings() {
@@ -576,9 +543,6 @@ class TextQueue {
               item.timestamp
             })</small>
           </div>
-          <button onclick="textQueue.removeItem(${
-            item.id
-          })" style="background: #dc3545; padding: 4px 8px; font-size: 12px;">削除</button>
         </div>
       `
         )

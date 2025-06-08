@@ -26,7 +26,18 @@ class DisplayManager {
     this.trackDisplayedText(textItem)
     this.enforceMaxTexts()
 
-    // ウィンドウサイズを更新（少し遅延させてレンダリング完了を待つ）
+    // 個別に指定時間後にフェードアウト・削除
+    const displayTime = 3000 // ms（必要に応じて外部から受け取る）
+    const fadeTime = 500 // ms
+    setTimeout(() => {
+      textItem.classList.add("fade-out")
+      setTimeout(() => {
+        if (textItem.parentNode) {
+          textItem.parentNode.removeChild(textItem)
+        }
+      }, fadeTime)
+    }, displayTime)
+
     setTimeout(() => this.updateWindowSize(), 100)
   }
 
@@ -55,9 +66,20 @@ class DisplayManager {
       this.trackDisplayedText(messageItem)
       this.enforceMaxTexts()
 
+      // 個別に指定時間後にフェードアウト・削除
+      const displayTime = 3000 // ms
+      const fadeTime = 1000 // ms
+      setTimeout(() => {
+        messageItem.classList.add("fade-out")
+        setTimeout(() => {
+          if (messageItem.parentNode) {
+            messageItem.parentNode.removeChild(messageItem)
+          }
+        }, fadeTime)
+      }, displayTime)
+
       console.log("Slackメッセージ表示完了")
 
-      // ウィンドウサイズを更新（少し遅延させてレンダリング完了を待つ）
       setTimeout(() => this.updateWindowSize(), 100)
     } catch (error) {
       this.handleSlackDisplayError(error, text, metadata)
