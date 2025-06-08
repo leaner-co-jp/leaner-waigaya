@@ -707,6 +707,17 @@ function showSlackSettings() {
 
   // テンプレート内容をクローン
   const inner = tmpl.content.cloneNode(true)
+  // ダイアログ本体にスタイルを追加
+  const innerRoot = inner.querySelector(".slack-dialog-inner")
+  if (innerRoot) {
+    innerRoot.style.background = "#fff"
+    innerRoot.style.borderRadius = "16px"
+    innerRoot.style.boxShadow = "0 4px 32px rgba(0,0,0,0.25)"
+    innerRoot.style.padding = "32px"
+    innerRoot.style.maxWidth = "480px"
+    innerRoot.style.width = "100%"
+    innerRoot.style.boxSizing = "border-box"
+  }
   dialog.appendChild(inner)
   document.body.appendChild(dialog)
 
@@ -761,6 +772,12 @@ function showSlackSettings() {
       }
     }
 }
+
+window.showSlackSettings = showSlackSettings
+window.toggleDebug = toggleDebug
+window.clearDebugLog = clearDebugLog
+window.toggleSetupGuide = toggleSetupGuide
+window.scrollToTokenInput = scrollToTokenInput
 
 function toggleSlackSettings() {
   const content = document.getElementById("slackContent")
