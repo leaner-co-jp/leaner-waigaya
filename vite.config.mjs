@@ -9,7 +9,7 @@ const __dirname = dirname(__filename)
 export default defineConfig({
   plugins: [tailwindcss()],
   // ベースパス
-  base: "./",
+  base: "",
 
   // ビルド設定
   build: {
