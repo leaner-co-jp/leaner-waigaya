@@ -3,14 +3,12 @@ const { ipcRenderer } = require("electron")
 class SlackIntegration {
   constructor() {
     this.isConnected = false
-    this.autoConnect = true // デフォルトで自動接続ON
     this.watchedChannels = [] // チャンネルIDの配列（後方互換性のため保持）
     this.watchedChannelData = {} // { channelId: { name: 'channel-name', id: 'channelId' } }
     this.availableChannels = []
     this.debugVisible = false
 
     this.setupSlackListeners()
-    this.loadSlackStatus()
     this.setupChannelSearch()
     this.setupDebugLogging()
   }
@@ -134,21 +132,10 @@ class SlackIntegration {
             this.watchedChannelData
           )
         }
-        if (config.autoConnect !== undefined) {
-          this.autoConnect = config.autoConnect
-          const btn = document.getElementById("autoConnectBtn")
-          if (btn) {
-            btn.textContent = `起動時自動接続: ${
-              this.autoConnect ? "ON" : "OFF"
-            }`
-            btn.style.backgroundColor = this.autoConnect ? "#28a745" : "#007cba"
-          }
-        }
-
         console.log("📁 保存された設定を復元しました")
 
-        // 自動接続がONで、トークンが両方揃っていれば自動接続
-        if (this.autoConnect && config.botToken && config.appToken) {
+        // トークンが両方揃っていれば自動接続
+        if (config.botToken && config.appToken) {
           console.log("🚀 保存されたトークンで自動接続を開始します")
           this.updateStatus("保存された設定で自動接続中...", "")
           try {
@@ -171,7 +158,6 @@ class SlackIntegration {
         appToken: document.getElementById("appToken").value,
         channels: this.watchedChannels, // 後方互換性のため保持
         watchedChannelData: this.watchedChannelData, // チャンネル名付きデータ
-        autoConnect: this.autoConnect,
       }
 
       const result = await ipcRenderer.invoke("save-config", config)
@@ -292,7 +278,6 @@ class SlackIntegration {
 
       this.availableChannels = await ipcRenderer.invoke("slack-get-channels")
       this.updateChannelSelect()
-      this.updateChannelList() // チャンネル名を更新
       this.updateStatus(
         `チャンネル一覧取得完了 (${this.availableChannels.length}チャンネル)`,
         "connected"
@@ -405,74 +390,49 @@ class SlackIntegration {
     await this.saveConfig()
   }
 
-  async toggleAutoConnect() {
-    this.autoConnect = !this.autoConnect
-    const btn = document.getElementById("autoConnectBtn")
-    btn.textContent = `起動時自動接続: ${this.autoConnect ? "ON" : "OFF"}`
-    btn.style.backgroundColor = this.autoConnect ? "#28a745" : "#007cba"
-    // 自動接続設定変更時に保存
-    await this.saveConfig()
-  }
-
   async updateUI() {
-    await this.updateChannelList()
     this.updateChannelSelect()
-  }
-
-  async updateChannelList() {
-    const container = document.getElementById("channelList")
-
-    if (this.watchedChannels.length === 0) {
-      container.innerHTML = "なし"
-      return
+    // 監視中チャンネル数の表示を更新
+    const channelCountEl = document.getElementById("channelCount")
+    if (channelCountEl) {
+      channelCountEl.textContent = this.watchedChannels.length
     }
-
-    container.innerHTML = this.watchedChannels
-      .map((channelId) => {
-        let displayText
-        let titleText = `ID: ${channelId}`
-        let cssClass = "channel-item"
-
-        // 保存されたチャンネルデータから名前を取得
-        if (
-          this.watchedChannelData[channelId] &&
-          this.watchedChannelData[channelId].name
-        ) {
-          displayText = `#${this.watchedChannelData[channelId].name}`
-        } else {
-          // チャンネル一覧から名前を取得
-          const channel = this.availableChannels.find(
-            (ch) => ch.id === channelId
-          )
-          if (channel) {
-            displayText = `#${channel.name}`
-            // チャンネルデータを更新
-            this.watchedChannelData[channelId] = {
-              id: channelId,
-              name: channel.name,
-            }
-          } else {
-            // 名前が不明な場合はIDを表示
-            displayText = `#${channelId}`
-            titleText = "チャンネル名未取得"
-            cssClass += " unknown"
-          }
-        }
-
-        return `<span class="${cssClass}" title="${titleText}">
-        ${displayText}
-        <button onclick="slackIntegration.removeChannel('${channelId}')">×</button>
-      </span>`
-      })
-      .join("")
+    // 監視中チャンネル名リストの表示を更新
+    const channelListEl = document.getElementById("watchedChannelList")
+    if (channelListEl) {
+      if (this.watchedChannels.length === 0) {
+        channelListEl.innerHTML =
+          '<span style="color:#888">（監視チャンネルなし）</span>'
+      } else {
+        channelListEl.innerHTML = this.watchedChannels
+          .map((id) => {
+            const name =
+              this.watchedChannelData &&
+              this.watchedChannelData[id] &&
+              this.watchedChannelData[id].name
+                ? this.watchedChannelData[id].name
+                : id
+            return `<span class="channel-item">#${name}</span>`
+          })
+          .join(" ")
+      }
+    }
   }
 
-  updateStatus(message, type) {
-    const status = document.getElementById("slackStatus")
-    status.textContent = message
-    status.className = "slack-status"
-    if (type) {
-      status.classList.add(type)
+  /**
+   * Slack状態表示を更新する（#slackStatus要素のテキストとクラスを切り替え）
+   * @param {string} message - 表示するメッセージ
+   * @param {string} status - 状態クラス（"connected" | "error" | ""）
+   */
+  updateStatus(message, status = "") {
+    const statusEl = document.getElementById("slackStatus")
+    if (!statusEl) return
+    statusEl.textContent = message
+    statusEl.classList.remove("connected", "error")
+    if (status === "connected") {
+      statusEl.classList.add("connected")
+    } else if (status === "error") {
+      statusEl.classList.add("error")
     }
   }
 }
@@ -637,68 +597,67 @@ document.addEventListener("DOMContentLoaded", () => {
     slackIntegration,
   })
 
+  // DOM構築後にSlack設定をロード（自動接続もここで）
+  slackIntegration.loadSlackStatus()
+
   // Slackボタンのイベントリスナー設定
-  document.getElementById("connectSlackBtn").onclick = async () => {
-    await slackIntegration.connect()
+  const connectBtn = document.getElementById("connectSlackBtn")
+  if (connectBtn) {
+    connectBtn.onclick = async () => {
+      await slackIntegration.connect()
+    }
   }
 
-  document.getElementById("disconnectSlackBtn").onclick = async () => {
-    await slackIntegration.disconnect()
+  const addChannelBtn = document.getElementById("addChannelBtn")
+  if (addChannelBtn) {
+    addChannelBtn.onclick = async () => {
+      await slackIntegration.addChannel()
+    }
   }
 
-  document.getElementById("addChannelBtn").onclick = async () => {
-    await slackIntegration.addChannel()
+  const loadChannelsBtn = document.getElementById("loadChannelsBtn")
+  if (loadChannelsBtn) {
+    loadChannelsBtn.onclick = async () => {
+      await slackIntegration.loadChannels()
+    }
   }
 
-  document.getElementById("autoConnectBtn").onclick = async () => {
-    await slackIntegration.toggleAutoConnect()
-  }
+  const clearConfigBtn = document.getElementById("clearConfigBtn")
+  if (clearConfigBtn) {
+    clearConfigBtn.onclick = async () => {
+      if (confirm("保存された設定をすべてクリアしますか？")) {
+        try {
+          const result = await ipcRenderer.invoke("save-config", {
+            botToken: "",
+            appToken: "",
+            channels: [],
+            watchedChannelData: {},
+          })
 
-  document.getElementById("loadChannelsBtn").onclick = async () => {
-    await slackIntegration.loadChannels()
-  }
+          if (result.success) {
+            // UIをクリア
+            document.getElementById("botToken").value = ""
+            document.getElementById("appToken").value = ""
+            slackIntegration.watchedChannels = []
+            slackIntegration.watchedChannelData = {}
+            await slackIntegration.updateUI()
 
-  document.getElementById("saveConfigBtn").onclick = async () => {
-    await slackIntegration.saveConfig()
-    alert("設定を保存しました")
-  }
-
-  document.getElementById("clearConfigBtn").onclick = async () => {
-    if (confirm("保存された設定をすべてクリアしますか？")) {
-      try {
-        const result = await ipcRenderer.invoke("save-config", {
-          botToken: "",
-          appToken: "",
-          channels: [],
-          watchedChannelData: {},
-          autoConnect: true,
-        })
-
-        if (result.success) {
-          // UIをクリア
-          document.getElementById("botToken").value = ""
-          document.getElementById("appToken").value = ""
-          slackIntegration.watchedChannels = []
-          slackIntegration.watchedChannelData = {}
-          slackIntegration.autoConnect = true
-          await slackIntegration.updateUI()
-
-          const autoConnectBtn = document.getElementById("autoConnectBtn")
-          autoConnectBtn.textContent = "起動時自動接続: ON"
-          autoConnectBtn.style.backgroundColor = "#28a745"
-
-          alert("設定をクリアしました")
+            alert("設定をクリアしました")
+          }
+        } catch (error) {
+          console.error("設定クリアエラー:", error)
+          alert("設定のクリアに失敗しました")
         }
-      } catch (error) {
-        console.error("設定クリアエラー:", error)
-        alert("設定のクリアに失敗しました")
       }
     }
   }
 
   // サンプルメッセージ追加ボタン
-  document.getElementById("addSampleMsgBtn").onclick = () => {
-    addSampleMessage()
+  const addSampleMsgBtn = document.getElementById("addSampleMsgBtn")
+  if (addSampleMsgBtn) {
+    addSampleMsgBtn.onclick = () => {
+      addSampleMessage()
+    }
   }
 
   // 設定手順の折りたたみ/展開

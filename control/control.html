@@ -22,6 +22,7 @@
               ⚙️ 設定
             </button>
           </div>
+          <div id="watchedChannelList"></div>
         </div>
         <div class="section-content" id="slackContent">
           <button id="toggleUsageGuideBtn" style="margin-bottom: 10px">
@@ -95,8 +96,6 @@
             </ol>
           </div>
 
-          <div class="slack-status" id="slackStatus">未接続</div>
-
           <div class="debug-info" id="debugInfo" style="display: none">
             <h4>🔍 デバッグ情報</h4>
             <div id="debugLog"></div>
@@ -126,6 +125,9 @@
                 style="width: 300px"
               />
             </div>
+            <div class="controls">
+              <button id="connectSlackBtn">Slack接続</button>
+            </div>
             <div style="margin-bottom: 15px">
               <label for="channelSearch">チャンネル検索:</label>
               <input
@@ -141,26 +143,18 @@
             </div>
             <div style="margin-bottom: 15px">
               <label for="channelSelect">監視チャンネル:</label>
-              <select id="channelSelect" style="width: 300px" disabled size="8">
+              <select id="channelSelect" style="width: 300px" disabled size="3">
                 <option value="">先にSlackに接続してください</option>
               </select>
             </div>
             <div class="controls">
-              <button id="connectSlackBtn">Slack接続</button>
-              <button id="disconnectSlackBtn">切断</button>
               <button id="addChannelBtn">チャンネル追加</button>
-              <button id="autoConnectBtn">起動時自動接続: ON</button>
-              <button id="saveConfigBtn">設定保存</button>
               <button id="clearConfigBtn" style="background: #dc3545">
                 設定クリア
               </button>
               <button onclick="toggleDebug()" style="background: #6c757d">
                 デバッグ表示
               </button>
-            </div>
-            <div id="watchedChannels" style="margin-top: 15px">
-              <strong>監視中のチャンネル:</strong>
-              <div id="channelList">なし</div>
             </div>
           </div>
         </div>
