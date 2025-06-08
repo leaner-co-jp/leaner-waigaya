@@ -320,22 +320,13 @@ class DisplayManager {
 
           // パディングと最小/最大サイズを考慮
           const padding = 40
-          const minWidth = 400
           const minHeight = 150
-          const maxWidthLimit = 1200
           const maxHeightLimit = 800
 
           // コンテナのscrollサイズも考慮
           const scrollWidth = this.textContainer.scrollWidth
           const scrollHeight = this.textContainer.scrollHeight
 
-          const contentWidth = Math.max(
-            minWidth,
-            Math.min(
-              maxWidthLimit,
-              Math.max(containerRect.width, scrollWidth) + padding
-            )
-          )
           const contentHeight = Math.max(
             minHeight,
             Math.min(
@@ -345,17 +336,16 @@ class DisplayManager {
           )
 
           console.log(
-            `🔧 ウィンドウサイズ更新: ${contentWidth}x${contentHeight} (コンテナ: ${containerRect.width}x${containerRect.height}, スクロール: ${scrollWidth}x${scrollHeight})`
+            `🔧 ウィンドウサイズ更新: x${contentHeight} (コンテナ: ${containerRect.width}x${containerRect.height}, スクロール: ${scrollWidth}x${scrollHeight})`
           )
           ipcRenderer.send("update-window-size", {
-            width: Math.ceil(contentWidth),
             height: Math.ceil(contentHeight),
           })
         }, 50)
       } else {
         // テキストがない場合：デフォルトサイズに設定
         console.log("🔧 ウィンドウサイズ更新: デフォルトサイズ")
-        ipcRenderer.send("update-window-size", { width: 400, height: 150 })
+        ipcRenderer.send("update-window-size", { height: 150 })
       }
     }
   }

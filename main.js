@@ -226,10 +226,12 @@ ipcMain.on("set-always-on-top", (event, alwaysOnTop) => {
 })
 
 // ウィンドウサイズの更新
-ipcMain.on("update-window-size", (event, { width, height }) => {
+ipcMain.on("update-window-size", (event, { height }) => {
   if (mainWindow) {
-    console.log(`🔧 ウィンドウサイズ更新: ${width}x${height}`)
-    mainWindow.setSize(width, height)
+    // widthは変更せず、heightのみ動的に変更
+    console.log(`🔧 ウィンドウ高さのみ更新: height=${height}`)
+    // const [currentWidth] = mainWindow.getSize()
+    mainWindow.setSize(600, height)
 
     // ウィンドウを画面の左上に配置（必要に応じて調整）
     const { screen } = require("electron")
