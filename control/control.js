@@ -3,7 +3,6 @@ const { ipcRenderer } = require("electron")
 class SlackIntegration {
   constructor() {
     this.isConnected = false
-    this.autoAdd = false
     this.autoConnect = true // デフォルトで自動接続ON
     this.watchedChannels = [] // チャンネルIDの配列（後方互換性のため保持）
     this.watchedChannelData = {} // { channelId: { name: 'channel-name', id: 'channelId' } }
@@ -48,10 +47,10 @@ class SlackIntegration {
     // Slackメッセージ受信リスナー
     ipcRenderer.on("slack-message-received", (event, messageData) => {
       console.log("📨 コントロール画面でSlackメッセージ受信:", messageData)
-      console.log("🔄 自動追加設定:", this.autoAdd)
       console.log("🔄 textQueueオブジェクト:", typeof textQueue, textQueue)
 
-      if (this.autoAdd) {
+      // 常に自動追加ON
+      {
         // チャンネル名を削除し、ユーザー名とテキストのみを表示
         const displayData = {
           text: messageData.text,
@@ -86,8 +85,6 @@ class SlackIntegration {
             console.log("🔄 代替案として入力フィールドに設定しました")
           }
         }
-      } else {
-        console.log("⚠️ 自動追加がOFFのため表示されません")
       }
     })
   }
@@ -139,14 +136,6 @@ class SlackIntegration {
             this.watchedChannelData
           )
         }
-        if (config.autoAdd !== undefined) {
-          this.autoAdd = config.autoAdd
-          const btn = document.getElementById("slackAutoBtn")
-          if (btn) {
-            btn.textContent = `自動追加: ${this.autoAdd ? "ON" : "OFF"}`
-            btn.style.backgroundColor = this.autoAdd ? "#28a745" : "#007cba"
-          }
-        }
         if (config.autoConnect !== undefined) {
           this.autoConnect = config.autoConnect
           const btn = document.getElementById("autoConnectBtn")
@@ -184,7 +173,6 @@ class SlackIntegration {
         appToken: document.getElementById("appToken").value,
         channels: this.watchedChannels, // 後方互換性のため保持
         watchedChannelData: this.watchedChannelData, // チャンネル名付きデータ
-        autoAdd: this.autoAdd,
         autoConnect: this.autoConnect,
       }
 
@@ -425,15 +413,6 @@ class SlackIntegration {
     ipcRenderer.send("slack-remove-channel", channelId)
     await this.updateUI()
     // チャンネル削除時に設定を保存
-    await this.saveConfig()
-  }
-
-  async toggleAutoAdd() {
-    this.autoAdd = !this.autoAdd
-    const btn = document.getElementById("slackAutoBtn")
-    btn.textContent = `自動追加: ${this.autoAdd ? "ON" : "OFF"}`
-    btn.style.backgroundColor = this.autoAdd ? "#28a745" : "#007cba"
-    // 自動追加設定変更時に保存
     await this.saveConfig()
   }
 
@@ -816,10 +795,6 @@ document.addEventListener("DOMContentLoaded", () => {
     await slackIntegration.addChannel()
   }
 
-  document.getElementById("slackAutoBtn").onclick = async () => {
-    await slackIntegration.toggleAutoAdd()
-  }
-
   document.getElementById("autoConnectBtn").onclick = async () => {
     await slackIntegration.toggleAutoConnect()
   }
@@ -841,7 +816,6 @@ document.addEventListener("DOMContentLoaded", () => {
           appToken: "",
           channels: [],
           watchedChannelData: {},
-          autoAdd: false,
           autoConnect: true,
         })
 
@@ -851,13 +825,8 @@ document.addEventListener("DOMContentLoaded", () => {
           document.getElementById("appToken").value = ""
           slackIntegration.watchedChannels = []
           slackIntegration.watchedChannelData = {}
-          slackIntegration.autoAdd = false
           slackIntegration.autoConnect = true
           await slackIntegration.updateUI()
-
-          const autoAddBtn = document.getElementById("slackAutoBtn")
-          autoAddBtn.textContent = "自動追加: OFF"
-          autoAddBtn.style.backgroundColor = "#007cba"
 
           const autoConnectBtn = document.getElementById("autoConnectBtn")
           autoConnectBtn.textContent = "起動時自動接続: ON"
