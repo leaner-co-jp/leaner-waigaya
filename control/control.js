@@ -243,10 +243,7 @@ class SlackIntegration {
 
         // 監視チャンネルがあるかどうかで表示を変更
         if (this.watchedChannels.length > 0) {
-          this.updateStatus(
-            `接続成功 - ${this.watchedChannels.length}チャンネルを監視中`,
-            "connected"
-          )
+          this.updateStatus(`接続成功`, "connected")
           console.log("✅ 接続成功 - 監視開始:", this.watchedChannels)
         } else {
           this.updateStatus(
@@ -544,6 +541,29 @@ class SlackIntegration {
     const channelCount = document.getElementById("channelCount")
     if (channelCount) {
       channelCount.textContent = this.watchedChannels.length
+    }
+
+    // 監視中チャンネル名リストの表示
+    const dashboard = document.getElementById("dashboard")
+    let channelNamesElem = document.getElementById("dashboardChannelNames")
+    if (!channelNamesElem) {
+      channelNamesElem = document.createElement("div")
+      channelNamesElem.id = "dashboardChannelNames"
+      channelNamesElem.style.marginTop = "8px"
+      channelNamesElem.style.fontSize = "13px"
+      dashboard.querySelector(".slack-card").appendChild(channelNamesElem)
+    }
+    if (this.watchedChannels.length === 0) {
+      channelNamesElem.textContent = "（監視中のチャンネルなし）"
+    } else {
+      const names = this.watchedChannels.map((cid) => {
+        if (this.watchedChannelData[cid] && this.watchedChannelData[cid].name) {
+          return `#${this.watchedChannelData[cid].name}`
+        } else {
+          return `#${cid}`
+        }
+      })
+      channelNamesElem.textContent = names.join("、 ")
     }
   }
 }
