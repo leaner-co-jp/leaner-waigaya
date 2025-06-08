@@ -861,6 +861,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // サンプルメッセージ追加ボタン
+  document.getElementById("addSampleMsgBtn").onclick = () => {
+    addSampleMessage()
+  }
+
   // テキストキューボタンのイベントリスナー設定
   document.getElementById("addTextBtn").onclick = () => {
     addText()
@@ -925,8 +930,6 @@ document.getElementById("fadeTime").addEventListener("change", () => {
   textQueue.updateSettings()
 })
 
-// Slack UI関数 - DOMContentLoadedのイベントリスナー内で直接実行するため削除
-
 // デバッグ用UI関数
 function toggleDebug() {
   const debugInfo = document.getElementById("debugInfo")
@@ -983,4 +986,36 @@ function toggleSlackSettings() {
     collapseBtn.classList.add("collapsed")
     collapseBtn.textContent = "▶"
   }
+}
+
+// サンプルメッセージを追加する関数
+function addSampleMessage() {
+  // ランダムなユーザー名とメッセージ
+  const users = [
+    { name: "Taro", icon: "https://randomuser.me/api/portraits/men/1.jpg" },
+    { name: "Hanako", icon: "https://randomuser.me/api/portraits/women/2.jpg" },
+    { name: "Bot", icon: "https://randomuser.me/api/portraits/lego/1.jpg" },
+    { name: "Yusuke", icon: "https://randomuser.me/api/portraits/men/3.jpg" },
+    { name: "Miku", icon: "https://randomuser.me/api/portraits/women/4.jpg" },
+  ]
+  const messages = [
+    "こんにちは！Slack連携テストです。",
+    "サンプルメッセージを表示します。",
+    "AIからの自動投稿です。",
+    "本番環境でも動作しますか？",
+    "これはダミーメッセージです。",
+    "お疲れ様です！",
+    "新しいお知らせがあります。",
+    "テスト投稿です。",
+    "Slack連携が成功しました！",
+    "メッセージの表示テスト中です。",
+  ]
+  const user = users[Math.floor(Math.random() * users.length)]
+  const text = messages[Math.floor(Math.random() * messages.length)]
+  // Slack風のデータで追加
+  window.textQueue.addSlackMessage({
+    text,
+    user: user.name,
+    userIcon: user.icon,
+  })
 }
