@@ -41,11 +41,10 @@ class SlackIntegration {
   }
 
   setupSlackListeners() {
-    // Slackメッセージ受信リスナー
+    console.log("setupSlackListeners called")
+    ipcRenderer.removeAllListeners("slack-message-received")
     ipcRenderer.on("slack-message-received", (event, messageData) => {
-      console.log("📨 コントロール画面でSlackメッセージ受信:", messageData)
-      console.log("🔄 textQueueオブジェクト:", typeof textQueue, textQueue)
-
+      console.log("slack-message-received", messageData)
       // 常に自動追加ON
       {
         // チャンネル名を削除し、ユーザー名とテキストのみを表示
@@ -63,12 +62,6 @@ class SlackIntegration {
         ) {
           window.textQueue.addSlackMessage(displayData)
           console.log("✅ テキストキューに正常に追加されました")
-
-          // Slackメッセージは自動再生開始
-          if (!window.textQueue.isPlaying) {
-            console.log("🚀 Slackメッセージで自動再生を開始")
-            window.textQueue.startQueue()
-          }
         } else {
           console.error(
             "❌ textQueueが利用できません:",
