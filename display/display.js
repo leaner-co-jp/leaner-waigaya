@@ -14,34 +14,6 @@ class DisplayManager {
   }
 
   /**
-   * 通常のテキストを表示
-   * @param {string} text - 表示するテキスト
-   */
-  addDisplayText(text) {
-    if (!text.trim()) return
-
-    const textItem = this.createTextElement(text, "text-item fade-in")
-    this.addToContainer(textItem)
-    this.startFadeInAnimation(textItem)
-    this.trackDisplayedText(textItem)
-    this.enforceMaxTexts()
-
-    // 個別に指定時間後にフェードアウト・削除
-    const displayTime = 3000 // ms（必要に応じて外部から受け取る）
-    const fadeTime = 500 // ms
-    setTimeout(() => {
-      textItem.classList.add("fade-out")
-      setTimeout(() => {
-        if (textItem.parentNode) {
-          textItem.parentNode.removeChild(textItem)
-        }
-      }, fadeTime)
-    }, displayTime)
-
-    setTimeout(() => this.updateWindowSize(), 100)
-  }
-
-  /**
    * Slackメッセージを表示
    * @param {string} text - メッセージテキスト
    * @param {Object} metadata - ユーザー情報等のメタデータ
@@ -66,6 +38,12 @@ class DisplayManager {
       this.trackDisplayedText(messageItem)
       this.enforceMaxTexts()
 
+      // 表示時に最前面ON
+      if (typeof require !== "undefined") {
+        const { ipcRenderer } = require("electron")
+        ipcRenderer.send("set-always-on-top", true)
+      }
+
       // 個別に指定時間後にフェードアウト・削除
       const displayTime = 3000 // ms
       const fadeTime = 1000 // ms
@@ -75,6 +53,15 @@ class DisplayManager {
           if (messageItem.parentNode) {
             messageItem.parentNode.removeChild(messageItem)
           }
+          // 全て消えたら最前面OFF
+          if (this.textContainer.childElementCount === 0) {
+            if (typeof require !== "undefined") {
+              const { ipcRenderer } = require("electron")
+              ipcRenderer.send("set-always-on-top", false)
+            }
+          }
+          // 高さ再設定
+          this.updateWindowSize()
         }, fadeTime)
       }, displayTime)
 
@@ -109,18 +96,6 @@ class DisplayManager {
 
     // ウィンドウサイズを最小に更新
     setTimeout(() => this.updateWindowSize(), 100)
-  }
-
-  /**
-   * 外部から呼び出される関数（後方互換性のため）
-   * @param {string} text - 表示するテキスト
-   */
-  updateDisplayText(text) {
-    if (text === "") {
-      this.clearAllTexts()
-    } else {
-      this.addDisplayText(text)
-    }
   }
 
   // プライベートメソッド
@@ -296,10 +271,10 @@ class DisplayManager {
     console.error("Slackメッセージ表示エラー:", error)
     console.error("エラー詳細:", { text, metadata, stack: error.stack })
 
-    // フォールバック: 通常のテキスト表示
+    // フォールバック: Slackメッセージとして表示
     try {
       const fallbackText = `${metadata?.user || "Unknown"}: ${text || "エラー"}`
-      this.addDisplayText(fallbackText)
+      this.displaySlackMessage(fallbackText, metadata)
     } catch (fallbackError) {
       console.error("フォールバック表示もエラー:", fallbackError)
     }
@@ -379,21 +354,6 @@ class DisplayManager {
     setTimeout(() => {
       this.clearAllTexts()
     }, 1000)
-  }
-}
-
-// グローバル関数（後方互換性のため）
-let displayManager
-
-function updateDisplayText(text) {
-  if (displayManager) {
-    displayManager.updateDisplayText(text)
-  }
-}
-
-function displaySlackMessage(text, metadata) {
-  if (displayManager) {
-    displayManager.displaySlackMessage(text, metadata)
   }
 }
 
