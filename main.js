@@ -230,20 +230,8 @@ ipcMain.on("update-window-size", (event, { height }) => {
   if (mainWindow) {
     // widthは変更せず、heightのみ動的に変更
     console.log(`🔧 ウィンドウ高さのみ更新: height=${height}`)
-    // const [currentWidth] = mainWindow.getSize()
     mainWindow.setSize(600, height)
-
-    // ウィンドウを画面の左上に配置（必要に応じて調整）
-    const { screen } = require("electron")
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const { width: screenWidth, height: screenHeight } =
-      primaryDisplay.workAreaSize
-
-    // 画面の左上から少し離れた位置に配置
-    const x = 50
-    const y = 50
-
-    mainWindow.setPosition(x, y)
+    // 位置変更はset-display-positionのみで行う
   }
 })
 
@@ -351,5 +339,39 @@ ipcMain.handle("load-config", () => {
     return { success: true, config }
   } catch (error) {
     return { success: false, error: error.message, config: null }
+  }
+})
+
+ipcMain.on("set-display-position", (event, pos) => {
+  if (mainWindow) {
+    const { width, height } = mainWindow.getBounds()
+    const { screen } = require("electron")
+    const primaryDisplay = screen.getPrimaryDisplay()
+    const { width: screenWidth, height: screenHeight } =
+      primaryDisplay.workAreaSize
+    let x = 0,
+      y = 0
+    switch (pos) {
+      case "top-left":
+        x = 0
+        y = 0
+        break
+      case "top-right":
+        x = screenWidth - width
+        y = 0
+        break
+      case "bottom-left":
+        x = 0
+        y = screenHeight - height
+        break
+      case "bottom-right":
+        x = screenWidth - width
+        y = screenHeight - height
+        break
+      default:
+        x = 0
+        y = 0
+    }
+    mainWindow.setPosition(x, y)
   }
 })

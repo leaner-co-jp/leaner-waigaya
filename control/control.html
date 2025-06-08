@@ -8,7 +8,7 @@
   <body class="bg-gray-100 m-0 p-5 font-sans">
     <div class="container max-w-xl mx-auto bg-white p-5 rounded-lg shadow-lg">
       <h1 class="text-gray-800 mb-5 text-xl font-bold">
-        �� テキスト表示コントロール
+        テキスト表示コントロール
       </h1>
 
       <div class="section mb-8" id="slackSettings">
@@ -120,28 +120,49 @@
         </div>
 
         <div class="settings flex gap-5 items-center mb-5">
-          <label for="displayTime" class="font-bold">表示時間:</label>
-          <input
-            type="number"
-            id="displayTime"
-            value="3"
-            min="1"
-            max="60"
-            class="px-2 py-1 border border-gray-300 rounded w-20"
-          />
-          <span>秒</span>
+          <div class="flex flex-col items-center">
+            <label for="displayPosition" class="mr-2 font-bold text-sm"
+              >表示位置:</label
+            >
+            <select id="displayPosition" class="border rounded px-2 py-1">
+              <option value="top-left">左上</option>
+              <option value="top-right">右上</option>
+              <option value="bottom-left">左下</option>
+              <option value="bottom-right">右下</option>
+            </select>
+          </div>
+          <div class="flex flex-col">
+            <label for="displayTime" class="font-bold text-sm">表示時間:</label>
+            <div class="flex items-center">
+              <input
+                type="number"
+                id="displayTime"
+                value="3"
+                min="1"
+                max="60"
+                class="px-2 py-1 border border-gray-300 rounded w-20"
+              />
+              <span>秒</span>
+            </div>
+          </div>
 
-          <label for="fadeTime" class="font-bold">フェード時間:</label>
-          <input
-            type="number"
-            id="fadeTime"
-            value="0.5"
-            min="0"
-            max="5"
-            step="0.1"
-            class="px-2 py-1 border border-gray-300 rounded w-20"
-          />
-          <span>秒</span>
+          <div class="flex flex-col">
+            <label for="fadeTime" class="font-bold text-sm"
+              >フェード時間:</label
+            >
+            <div class="flex items-center">
+              <input
+                type="number"
+                id="fadeTime"
+                value="0.5"
+                min="0"
+                max="5"
+                step="0.1"
+                class="px-2 py-1 border border-gray-300 rounded w-20"
+              />
+              <span>秒</span>
+            </div>
+          </div>
         </div>
 
         <div
