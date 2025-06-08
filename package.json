@@ -29,12 +29,14 @@
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "electron": "^36.4.0",
+    "tailwindcss": "^4.1.8",
     "vite": "^6.3.5",
     "wait-on": "^8.0.3"
   },
   "dependencies": {
     "@slack/socket-mode": "^2.0.4",
     "@slack/web-api": "^7.9.2",
+    "@tailwindcss/vite": "^4.1.8",
     "axios": "^1.9.0",
     "electron-squirrel-startup": "^1.0.1"
   }
