@@ -13,12 +13,15 @@ class SlackWatcher {
       appToken: "",
       channels: [],
     }
+    this.userCache = {}
   }
 
   // 設定を更新
-  updateConfig(config) {
+  async updateConfig(config) {
     this.config = { ...this.config, ...config }
     this.webClient = new WebClient(this.config.botToken)
+    // ユーザー情報を一括取得
+    await this.fetchAllUsers()
 
     // 監視チャンネルを復元
     if (config.channels && Array.isArray(config.channels)) {
@@ -392,13 +395,10 @@ class SlackWatcher {
 
   // ユーザー情報を取得
   async getUserInfo(userId) {
-    try {
-      const result = await this.webClient.users.info({
-        user: userId,
-      })
-      return result.user.profile
-    } catch (error) {
-      console.error("ユーザー情報取得エラー:", error)
+    // キャッシュから取得
+    if (this.userCache[userId]) {
+      return this.userCache[userId]
+    } else {
       return { name: "unknown" }
     }
   }
@@ -489,6 +489,22 @@ class SlackWatcher {
   // 接続状態の取得
   getConnectionStatus() {
     return this.isConnected
+  }
+
+  async fetchAllUsers() {
+    try {
+      const result = await this.webClient.users.list()
+      if (result.members && Array.isArray(result.members)) {
+        result.members.forEach((user) => {
+          this.userCache[user.id] = user.profile
+        })
+        console.log(`✅ ユーザー情報を一括取得: ${result.members.length}件`)
+      } else {
+        console.warn("⚠️ ユーザー情報が取得できませんでした")
+      }
+    } catch (error) {
+      console.error("❌ ユーザー一覧取得エラー:", error)
+    }
   }
 }
 
