@@ -11,7 +11,10 @@
     "package": "npm run build && electron-forge package",
     "make": "npm run build && electron-forge make",
     "publish": "npm run build && electron-forge publish",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
   },
   "keywords": [],
   "author": "",
@@ -29,6 +32,7 @@
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "electron": "^36.4.0",
+    "electron-builder": "^26.0.12",
     "tailwindcss": "^4.1.8",
     "vite": "^6.3.5",
     "wait-on": "^8.0.3"
