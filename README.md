@@ -1,4 +1,4 @@
-# COMSC - Slack Message Display App
+# Leaner Waigaya - Slack Message Display App
 
 Slack メッセージを Electron アプリで透過ウィンドウに表示するアプリケーションです。
 
@@ -63,7 +63,7 @@ npm run publish
 ## ファイル構造
 
 ```
-comsc/
+/
 ├── main.js                 # Electronメインプロセス
 ├── display/
 │   ├── display.html        # 透過表示ウィンドウ
@@ -91,7 +91,7 @@ comsc/
 
 ### 出力ディレクトリ
 
-- `out/COMSC-{platform}-{arch}/`: パッケージ化されたアプリ
+- `out/waigaya-{platform}-{arch}/`: パッケージ化されたアプリ
 - `out/make/`: インストーラー・配布パッケージ
 
 ### カスタマイズ

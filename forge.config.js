@@ -1,12 +1,13 @@
 const { FusesPlugin } = require("@electron-forge/plugin-fuses")
 const { FuseV1Options, FuseVersion } = require("@electron/fuses")
+const { resolve } = require("path")
 
 module.exports = {
   packagerConfig: {
     asar: true,
-    name: "COMSC",
-    executableName: "comsc",
-    appBundleId: "com.example.comsc",
+    name: "Waigaya",
+    executableName: "waigaya",
+    appBundleId: "jp.co.leaner.waigaya",
     appCategoryType: "public.app-category.utilities",
     icon: "./assets/icon",
     ignore: [
@@ -19,14 +20,18 @@ module.exports = {
       /forge\.config\.js$/,
       /^\/\.env/,
     ],
+    input: {
+      display: resolve(__dirname, "display/display.html"),
+      control: resolve(__dirname, "control/control.html"),
+    },
   },
   rebuildConfig: {},
   makers: [
     {
       name: "@electron-forge/maker-squirrel",
       config: {
-        name: "comsc",
-        setupExe: "COMSC-Setup.exe",
+        name: "waigaya",
+        setupExe: "Waigaya-Setup.exe",
         setupIcon: "./assets/icon.ico",
       },
     },
@@ -34,27 +39,29 @@ module.exports = {
       name: "@electron-forge/maker-zip",
       platforms: ["darwin"],
       config: {
-        name: "COMSC",
+        name: "Waigaya",
       },
     },
     {
       name: "@electron-forge/maker-deb",
       config: {
         options: {
-          maintainer: "Your Name",
-          homepage: "https://github.com/yourusername/comsc",
+          maintainer: "Yusuke Kokubo",
+          homepage: "https://github.com/leaner-co-jp/leaner-waigaya",
           description: "Slack Message Display App",
         },
+        name: "waigaya",
       },
     },
     {
       name: "@electron-forge/maker-rpm",
       config: {
         options: {
-          maintainer: "Your Name",
-          homepage: "https://github.com/yourusername/comsc",
+          maintainer: "Yusuke Kokubo",
+          homepage: "https://github.com/leaner-co-jp/leaner-waigaya",
           description: "Slack Message Display App",
         },
+        name: "waigaya",
       },
     },
   ],
