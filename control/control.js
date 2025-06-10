@@ -626,32 +626,6 @@ document.addEventListener("DOMContentLoaded", () => {
       addSampleMessage()
     }
   }
-
-  // 表示位置セレクトボックスの初期化
-  const displayPositionSelect = document.getElementById("displayPosition")
-  if (displayPositionSelect) {
-    // localStorageから復元
-    const savedPosition = localStorage.getItem("displayPosition") || "top-left"
-    displayPositionSelect.value = savedPosition
-    // 変更時にmainプロセスへ送信
-    displayPositionSelect.addEventListener("change", (e) => {
-      const pos = e.target.value
-      localStorage.setItem("displayPosition", pos)
-      if (window.ipcRenderer) {
-        window.ipcRenderer.send("set-display-position", pos)
-      } else if (typeof require !== "undefined") {
-        const { ipcRenderer } = require("electron")
-        ipcRenderer.send("set-display-position", pos)
-      }
-    })
-    // 初回もmainプロセスに送信
-    if (window.ipcRenderer) {
-      window.ipcRenderer.send("set-display-position", savedPosition)
-    } else if (typeof require !== "undefined") {
-      const { ipcRenderer } = require("electron")
-      ipcRenderer.send("set-display-position", savedPosition)
-    }
-  }
 })
 
 // デバッグ用UI関数
