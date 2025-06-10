@@ -61,15 +61,15 @@ class DisplayManager {
             }
           }
           // 高さ再設定
-          setTimeout(() => {
-            this.updateWindowSize()
-          }, 50)
+          // setTimeout(() => {
+          //   this.updateWindowSize()
+          // }, 50)
         }, fadeTime)
       }, displayTime)
 
       console.log("Slackメッセージ表示完了")
 
-      setTimeout(() => this.updateWindowSize(), 100)
+      // setTimeout(() => this.updateWindowSize(), 100)
     } catch (error) {
       this.handleSlackDisplayError(error, text, metadata)
     }
@@ -97,7 +97,7 @@ class DisplayManager {
     }
 
     // ウィンドウサイズを最小に更新
-    setTimeout(() => this.updateWindowSize(), 100)
+    // setTimeout(() => this.updateWindowSize(), 100)
   }
 
   // プライベートメソッド
@@ -259,7 +259,7 @@ class DisplayManager {
         oldest.element.parentNode.removeChild(oldest.element)
       }
       // 要素削除後にウィンドウサイズを更新
-      this.updateWindowSize()
+      // this.updateWindowSize()
     }, 300)
   }
 

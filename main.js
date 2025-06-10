@@ -92,12 +92,11 @@ function loadConfig() {
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 100,
-    height: 100,
+    width: 500,
+    height: 600,
     frame: false,
     transparent: true,
-    alwaysOnTop: false,
-    skipTaskbar: true,
+    alwaysOnTop: true,
     resizable: true,
     webPreferences: {
       nodeIntegration: true,
