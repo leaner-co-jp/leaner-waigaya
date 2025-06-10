@@ -34,38 +34,38 @@ class DisplayManager {
 
       const messageItem = this.createSlackMessageElement(safeData)
       this.addToContainer(messageItem)
-      this.startFadeInAnimation(messageItem)
-      this.trackDisplayedText(messageItem)
-      this.enforceMaxTexts()
+      // this.startFadeInAnimation(messageItem)
+      // this.trackDisplayedText(messageItem)
+      // this.enforceMaxTexts()
 
       // 表示時に最前面ON
-      if (typeof require !== "undefined") {
-        const { ipcRenderer } = require("electron")
-        ipcRenderer.send("set-always-on-top", true)
-      }
+      // if (typeof require !== "undefined") {
+      //   const { ipcRenderer } = require("electron")
+      //   ipcRenderer.send("set-always-on-top", true)
+      // }
 
       // 個別に指定時間後にフェードアウト・削除
-      const displayTime = 3000 // ms
-      const fadeTime = 1000 // ms
-      setTimeout(() => {
-        messageItem.classList.add("fade-out")
-        setTimeout(() => {
-          if (messageItem.parentNode) {
-            messageItem.parentNode.removeChild(messageItem)
-          }
-          // 全て消えたら最前面OFF
-          if (this.textContainer.childElementCount === 0) {
-            if (typeof require !== "undefined") {
-              const { ipcRenderer } = require("electron")
-              ipcRenderer.send("set-always-on-top", false)
-            }
-          }
-          // 高さ再設定
-          // setTimeout(() => {
-          //   this.updateWindowSize()
-          // }, 50)
-        }, fadeTime)
-      }, displayTime)
+      // const displayTime = 3000 // ms
+      // const fadeTime = 1000 // ms
+      // setTimeout(() => {
+      //   messageItem.classList.add("fade-out")
+      //   setTimeout(() => {
+      //     if (messageItem.parentNode) {
+      //       messageItem.parentNode.removeChild(messageItem)
+      //     }
+      //     // 全て消えたら最前面OFF
+      //     // if (this.textContainer.childElementCount === 0) {
+      //     //   if (typeof require !== "undefined") {
+      //     //     const { ipcRenderer } = require("electron")
+      //     //     ipcRenderer.send("set-always-on-top", false)
+      //     //   }
+      //     // }
+      //     // 高さ再設定
+      //     // setTimeout(() => {
+      //     //   this.updateWindowSize()
+      //     // }, 50)
+      //   }, fadeTime)
+      // }, displayTime)
 
       console.log("Slackメッセージ表示完了")
 
@@ -90,11 +90,11 @@ class DisplayManager {
     this.displayedTexts = []
 
     // 全てのテキストがクリアされた時に最前面表示を解除
-    if (typeof require !== "undefined") {
-      const { ipcRenderer } = require("electron")
-      console.log("🔧 全テキストクリア: 最前面表示を解除")
-      ipcRenderer.send("set-always-on-top", false)
-    }
+    // if (typeof require !== "undefined") {
+    //   const { ipcRenderer } = require("electron")
+    //   console.log("🔧 全テキストクリア: 最前面表示を解除")
+    //   ipcRenderer.send("set-always-on-top", false)
+    // }
 
     // ウィンドウサイズを最小に更新
     // setTimeout(() => this.updateWindowSize(), 100)
@@ -305,36 +305,36 @@ class DisplayManager {
   /**
    * ウィンドウサイズを更新
    */
-  updateWindowSize() {
-    if (typeof require !== "undefined") {
-      const { ipcRenderer } = require("electron")
+  // updateWindowSize() {
+  //   if (typeof require !== "undefined") {
+  //     const { ipcRenderer } = require("electron")
 
-      const hasContent = this.displayedTexts.length > 0
+  //     const hasContent = this.displayedTexts.length > 0
 
-      if (hasContent) {
-        setTimeout(() => {
-          const minHeight = 150
-          const maxHeightLimit = 800
-          const scrollHeight = this.textContainer.scrollHeight + 60
+  //     if (hasContent) {
+  //       setTimeout(() => {
+  //         const minHeight = 150
+  //         const maxHeightLimit = 800
+  //         const scrollHeight = this.textContainer.scrollHeight + 60
 
-          const contentHeight = Math.max(
-            minHeight,
-            Math.min(maxHeightLimit, scrollHeight)
-          )
+  //         const contentHeight = Math.max(
+  //           minHeight,
+  //           Math.min(maxHeightLimit, scrollHeight)
+  //         )
 
-          console.log(
-            `🔧 ウィンドウサイズ更新: x${contentHeight} (スクロール: x${scrollHeight})`
-          )
-          ipcRenderer.send("update-window-size", {
-            height: Math.ceil(contentHeight),
-          })
-        }, 50)
-      } else {
-        console.log("🔧 ウィンドウサイズ更新: デフォルトサイズ")
-        ipcRenderer.send("update-window-size", { height: 150 })
-      }
-    }
-  }
+  //         console.log(
+  //           `🔧 ウィンドウサイズ更新: x${contentHeight} (スクロール: x${scrollHeight})`
+  //         )
+  //         ipcRenderer.send("update-window-size", {
+  //           height: Math.ceil(contentHeight),
+  //         })
+  //       }, 50)
+  //     } else {
+  //       console.log("🔧 ウィンドウサイズ更新: デフォルトサイズ")
+  //       ipcRenderer.send("update-window-size", { height: 150 })
+  //     }
+  //   }
+  // }
 
   /**
    * テスト用の初期表示をクリア
