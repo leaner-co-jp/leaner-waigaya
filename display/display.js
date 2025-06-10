@@ -7,10 +7,10 @@ class DisplayManager {
     this.textContainer = document.getElementById("text-container")
     this.displayedTexts = []
     this.textIdCounter = 0
-    this.maxTexts = 10 // 最大表示数
+    // this.maxTexts = 10 // 最大表示数
 
     this.initializeIPC()
-    this.clearTestDisplay()
+    // this.clearTestDisplay()
   }
 
   /**
@@ -78,27 +78,27 @@ class DisplayManager {
   /**
    * 全てのテキストをクリア
    */
-  clearAllTexts() {
-    this.displayedTexts.forEach((item) => {
-      item.element.classList.add("fade-out")
-      setTimeout(() => {
-        if (item.element.parentNode) {
-          item.element.parentNode.removeChild(item.element)
-        }
-      }, 500)
-    })
-    this.displayedTexts = []
+  // clearAllTexts() {
+  //   this.displayedTexts.forEach((item) => {
+  //     item.element.classList.add("fade-out")
+  //     setTimeout(() => {
+  //       if (item.element.parentNode) {
+  //         item.element.parentNode.removeChild(item.element)
+  //       }
+  //     }, 500)
+  //   })
+  //   this.displayedTexts = []
 
-    // 全てのテキストがクリアされた時に最前面表示を解除
-    // if (typeof require !== "undefined") {
-    //   const { ipcRenderer } = require("electron")
-    //   console.log("🔧 全テキストクリア: 最前面表示を解除")
-    //   ipcRenderer.send("set-always-on-top", false)
-    // }
+  //   // 全てのテキストがクリアされた時に最前面表示を解除
+  //   // if (typeof require !== "undefined") {
+  //   //   const { ipcRenderer } = require("electron")
+  //   //   console.log("🔧 全テキストクリア: 最前面表示を解除")
+  //   //   ipcRenderer.send("set-always-on-top", false)
+  //   // }
 
-    // ウィンドウサイズを最小に更新
-    // setTimeout(() => this.updateWindowSize(), 100)
-  }
+  //   // ウィンドウサイズを最小に更新
+  //   // setTimeout(() => this.updateWindowSize(), 100)
+  // }
 
   // プライベートメソッド
 
@@ -131,7 +131,7 @@ class DisplayManager {
   createSlackMessageElement(safeData) {
     const messageItem = document.createElement("div")
     messageItem.className =
-      "whitespace-pre-wrap break-words transition-opacity transition-transform duration-500 ease-in-out opacity-100 translate-y-0 mb-1.5 min-h-[40px] flex items-start gap-2.5 p-3 rounded-xl bg-black/60 backdrop-blur-md" +
+      "whitespace-pre-wrap break-words opacity-100 translate-y-0 mb-1.5 min-h-[40px] flex items-start gap-2 p-3 rounded-xl bg-black/60 backdrop-blur-md" +
       " fade-in opacity-0 -translate-y-5"
     messageItem.id = `text-${++this.textIdCounter}`
 
@@ -239,11 +239,11 @@ class DisplayManager {
   /**
    * 最大表示数を超えた場合の古いテキスト削除
    */
-  enforceMaxTexts() {
-    while (this.displayedTexts.length > this.maxTexts) {
-      this.removeOldestText()
-    }
-  }
+  // enforceMaxTexts() {
+  //   while (this.displayedTexts.length > this.maxTexts) {
+  //     this.removeOldestText()
+  //   }
+  // }
 
   /**
    * 最も古いテキストを削除
@@ -339,11 +339,11 @@ class DisplayManager {
   /**
    * テスト用の初期表示をクリア
    */
-  clearTestDisplay() {
-    setTimeout(() => {
-      this.clearAllTexts()
-    }, 1000)
-  }
+  // clearTestDisplay() {
+  //   setTimeout(() => {
+  //     this.clearAllTexts()
+  //   }, 1000)
+  // }
 }
 
 // 初期化

@@ -94,6 +94,8 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 500,
     height: 600,
+    x: 0,
+    y: 0,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -161,16 +163,16 @@ app.whenReady().then(() => {
   }
 
   // Slackメッセージ受信時の処理
-  // slackWatcher.onMessage((messageData) => {
-  //   console.log("🎯 メインプロセスでSlackメッセージ受信:", messageData)
-  //   if (controlWindow) {
-  //     console.log("📤 コントロールウィンドウに送信中...")
-  //     controlWindow.webContents.send("slack-message-received", messageData)
-  //     console.log("✅ コントロールウィンドウに送信完了")
-  //   } else {
-  //     console.log("⚠️ コントロールウィンドウが見つかりません")
-  //   }
-  // })
+  slackWatcher.onMessage((messageData) => {
+    console.log("🎯 メインプロセスでSlackメッセージ受信:", messageData)
+    if (controlWindow) {
+      console.log("📤 コントロールウィンドウに送信中...")
+      controlWindow.webContents.send("slack-message-received", messageData)
+      console.log("✅ コントロールウィンドウに送信完了")
+    } else {
+      console.log("⚠️ コントロールウィンドウが見つかりません")
+    }
+  })
 })
 
 app.on("window-all-closed", () => {
