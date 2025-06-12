@@ -447,7 +447,49 @@ class TextQueue {
     this.currentTimer = null
     this.displayTime = 3000 // ms
     this.fadeTime = 500 // ms
+    // 表示設定の初期値
+    this.fontSize = 26
+    this.bgColor = "#000000"
+    this.bgAlpha = 0.5
+    this.fontColor = "#ffffff"
+    this.loadDisplaySettings()
     this.updateUI()
+  }
+
+  // 表示設定をlocalStorageから復元
+  loadDisplaySettings() {
+    const saved = localStorage.getItem("waigayaDisplaySettings")
+    if (saved) {
+      try {
+        const obj = JSON.parse(saved)
+        if (obj.fontSize) this.fontSize = obj.fontSize
+        if (obj.bgColor) this.bgColor = obj.bgColor
+        if (typeof obj.bgAlpha === "number") this.bgAlpha = obj.bgAlpha
+        if (obj.fontColor) this.fontColor = obj.fontColor
+      } catch (e) {}
+    }
+    // UIに反映
+    const fontSizeInput = document.getElementById("fontSize")
+    if (fontSizeInput) fontSizeInput.value = this.fontSize
+    const bgColorInput = document.getElementById("bgColor")
+    if (bgColorInput) bgColorInput.value = this.bgColor
+    const bgAlphaInput = document.getElementById("bgAlpha")
+    if (bgAlphaInput) bgAlphaInput.value = this.bgAlpha
+    const bgAlphaValue = document.getElementById("bgAlphaValue")
+    if (bgAlphaValue) bgAlphaValue.textContent = Number(this.bgAlpha).toFixed(2)
+    const fontColorInput = document.getElementById("fontColor")
+    if (fontColorInput) fontColorInput.value = this.fontColor
+  }
+
+  // 表示設定をlocalStorageに保存
+  saveDisplaySettings() {
+    const obj = {
+      fontSize: Number(document.getElementById("fontSize").value),
+      bgColor: document.getElementById("bgColor").value,
+      bgAlpha: Number(document.getElementById("bgAlpha").value),
+      fontColor: document.getElementById("fontColor").value,
+    }
+    localStorage.setItem("waigayaDisplaySettings", JSON.stringify(obj))
   }
 
   addSlackMessage(messageData) {
@@ -626,6 +668,26 @@ document.addEventListener("DOMContentLoaded", () => {
       addSampleMessage()
     }
   }
+
+  // 表示設定のイベントリスナー
+  const fontSizeInput = document.getElementById("fontSize")
+  const bgColorInput = document.getElementById("bgColor")
+  const bgAlphaInput = document.getElementById("bgAlpha")
+  const bgAlphaValue = document.getElementById("bgAlphaValue")
+  const fontColorInput = document.getElementById("fontColor")
+  function saveSettingsAndUpdateAlpha() {
+    if (window.textQueue) window.textQueue.saveDisplaySettings()
+    if (bgAlphaInput && bgAlphaValue)
+      bgAlphaValue.textContent = Number(bgAlphaInput.value).toFixed(2)
+  }
+  if (fontSizeInput)
+    fontSizeInput.addEventListener("input", saveSettingsAndUpdateAlpha)
+  if (bgColorInput)
+    bgColorInput.addEventListener("input", saveSettingsAndUpdateAlpha)
+  if (bgAlphaInput)
+    bgAlphaInput.addEventListener("input", saveSettingsAndUpdateAlpha)
+  if (fontColorInput)
+    fontColorInput.addEventListener("input", saveSettingsAndUpdateAlpha)
 })
 
 // デバッグ用UI関数

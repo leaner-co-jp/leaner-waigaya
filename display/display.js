@@ -112,7 +112,7 @@ class DisplayManager {
     const textItem = document.createElement("div")
     // Tailwindクラスでスタイリング
     textItem.className =
-      "whitespace-pre-wrap break-words transition-opacity transition-transform duration-500 ease-in-out opacity-100 translate-y-0 mb-1.5 p-2.5 rounded-lg bg-black/30 backdrop-blur-sm min-h-[40px] flex items-center" +
+      "whitespace-pre-wrap break-words transition-opacity transition-transform duration-500 ease-in-out opacity-100 translate-y-0 mb-1.5 p-2.5 rounded-lg min-h-[40px] flex items-center" +
       (className.includes("fade-in") ? " opacity-0 -translate-y-5" : "") +
       (className.includes("fade-out") ? " opacity-0 translate-y-5" : "") +
       (className.includes("removing")
@@ -120,6 +120,14 @@ class DisplayManager {
         : "")
     textItem.textContent = text
     textItem.id = `text-${++this.textIdCounter}`
+    // 設定反映
+    const settings = getDisplaySettings()
+    textItem.style.fontSize = settings.fontSize + "px"
+    textItem.style.backgroundColor = hexToRgba(
+      settings.bgColor,
+      settings.bgAlpha
+    )
+    textItem.style.color = settings.fontColor
     return textItem
   }
 
@@ -131,15 +139,23 @@ class DisplayManager {
   createSlackMessageElement(safeData) {
     const messageItem = document.createElement("div")
     messageItem.className =
-      "whitespace-pre-wrap break-words opacity-100 translate-y-0 mb-1.5 min-h-[40px] flex items-start gap-2 p-3 rounded-xl bg-black/60 backdrop-blur-md" +
-      " fade-in opacity-0 -translate-y-5"
+      "whitespace-pre-wrap break-words opacity-100 translate-y-0 mb-1.5 min-h-[40px] flex items-start gap-2 p-3 rounded-xl fade-in opacity-0 -translate-y-5"
     messageItem.id = `text-${++this.textIdCounter}`
+
+    // 設定反映
+    const settings = getDisplaySettings()
+    messageItem.style.fontSize = settings.fontSize + "px"
+    messageItem.style.backgroundColor = hexToRgba(
+      settings.bgColor,
+      settings.bgAlpha
+    )
+    messageItem.style.color = settings.fontColor
 
     // アバター画像
     const avatar = this.createAvatarElement(safeData.userIcon)
 
     // コンテンツエリア
-    const content = this.createSlackContentElement(safeData)
+    const content = this.createSlackContentElement(safeData, settings)
 
     messageItem.appendChild(avatar)
     messageItem.appendChild(content)
@@ -168,7 +184,7 @@ class DisplayManager {
    * @param {Object} safeData - サニタイズされたデータ
    * @returns {HTMLElement} コンテンツ要素
    */
-  createSlackContentElement(safeData) {
+  createSlackContentElement(safeData, settings) {
     const content = document.createElement("div")
     content.className = "flex-1 min-w-0"
 
@@ -180,9 +196,13 @@ class DisplayManager {
 
     // メッセージテキスト
     const textDiv = document.createElement("div")
-    textDiv.className =
-      "text-lg text-white leading-snug drop-shadow-[2px_2px_4px_rgba(0,0,0,0.8)]"
+    textDiv.className = "leading-snug drop-shadow-[2px_2px_4px_rgba(0,0,0,0.8)]"
     textDiv.textContent = safeData.text
+    // 設定反映
+    if (settings) {
+      textDiv.style.fontSize = settings.fontSize + "px"
+      textDiv.style.color = settings.fontColor
+    }
 
     content.appendChild(userDiv)
     content.appendChild(textDiv)
@@ -350,3 +370,32 @@ class DisplayManager {
 document.addEventListener("DOMContentLoaded", () => {
   displayManager = new DisplayManager()
 })
+
+// localStorageから表示設定を取得
+function getDisplaySettings() {
+  const saved = localStorage.getItem("waigayaDisplaySettings")
+  if (saved) {
+    try {
+      const obj = JSON.parse(saved)
+      return {
+        fontSize: obj.fontSize || 48,
+        bgColor: obj.bgColor || "#000000",
+        bgAlpha: typeof obj.bgAlpha === "number" ? obj.bgAlpha : 1,
+        fontColor: obj.fontColor || "#ffffff",
+      }
+    } catch (e) {}
+  }
+  return { fontSize: 48, bgColor: "#000000", bgAlpha: 1, fontColor: "#ffffff" }
+}
+
+// HEXカラー＋アルファ値をrgba文字列に変換
+function hexToRgba(hex, alpha) {
+  let c = hex.replace("#", "")
+  if (c.length === 3) {
+    c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2]
+  }
+  const r = parseInt(c.substring(0, 2), 16)
+  const g = parseInt(c.substring(2, 4), 16)
+  const b = parseInt(c.substring(4, 6), 16)
+  return `rgba(${r},${g},${b},${alpha})`
+}

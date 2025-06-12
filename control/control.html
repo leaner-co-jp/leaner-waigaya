@@ -197,6 +197,54 @@
               <span>秒</span>
             </div>
           </div>
+
+          <div class="flex flex-col">
+            <label for="fontSize" class="font-bold text-sm">文字サイズ:</label>
+            <div class="flex items-center">
+              <input
+                type="number"
+                id="fontSize"
+                value="48"
+                min="10"
+                max="200"
+                class="px-2 py-1 border border-gray-300 rounded w-20"
+              />
+              <span>px</span>
+            </div>
+          </div>
+
+          <div class="flex flex-col">
+            <label for="bgColor" class="font-bold text-sm">背景色:</label>
+            <input
+              type="color"
+              id="bgColor"
+              value="#000000"
+              class="w-10 h-10 border border-gray-300 rounded"
+            />
+            <div class="flex items-center mt-1">
+              <label for="bgAlpha" class="text-xs mr-2">透明度:</label>
+              <input
+                type="range"
+                id="bgAlpha"
+                min="0"
+                max="1"
+                step="0.01"
+                value="1"
+                class="w-24"
+              />
+              <span id="bgAlphaValue" class="text-xs ml-2">1.00</span>
+            </div>
+          </div>
+
+          <div class="flex flex-col">
+            <label for="fontColor" class="font-bold text-sm">文字色:</label>
+            <input
+              type="color"
+              id="fontColor"
+              value="#ffffff"
+              class="w-10 h-10 border border-gray-300 rounded"
+            />
+          </div>
         </div>
 
         <div
