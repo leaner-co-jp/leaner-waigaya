@@ -1,9 +1,8 @@
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
+const { app, BrowserWindow, ipcMain, safeStorage } = require("electron")
 if (require("electron-squirrel-startup")) {
   app.quit()
 }
 
-const { app, BrowserWindow, ipcMain, safeStorage } = require("electron")
 const path = require("path")
 const fs = require("fs")
 const SlackWatcher = require("./control/slack-client")
