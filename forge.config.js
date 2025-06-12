@@ -9,7 +9,10 @@ module.exports = {
     executableName: "waigaya",
     appBundleId: "jp.co.leaner.waigaya",
     appCategoryType: "public.app-category.utilities",
-    icon: "./assets/icon",
+    icon: "./assets/icon.ico",
+    author: "Yusuke Kokubo",
+    homepage: "https://github.com/leaner-co-jp/leaner-waigaya",
+    description: "Slack Message Display App",
     ignore: [
       /^\/src\//,
       /^\/\.vscode\//,
@@ -33,6 +36,9 @@ module.exports = {
         name: "waigaya",
         setupExe: "Waigaya-Setup.exe",
         setupIcon: "./assets/icon.ico",
+        authors: "Yusuke Kokubo",
+        homepage: "https://github.com/leaner-co-jp/leaner-waigaya",
+        description: "Slack Message Display App",
       },
     },
     {
