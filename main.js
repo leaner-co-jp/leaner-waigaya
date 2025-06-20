@@ -11,6 +11,50 @@ let mainWindow
 let controlWindow
 let slackWatcher
 
+// デバッグログをcontrolに送信
+function sendLogToControl(level, args) {
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    try {
+      controlWindow.webContents.send('debug-log-from-main', {
+        level: level,
+        message: args,
+        timestamp: Date.now(),
+        source: 'MAIN'
+      })
+    } catch (error) {
+      // IPC送信エラーは無視（controlWindow が準備中の場合など）
+    }
+  }
+}
+
+// コンソールログをオーバーライド
+const originalConsole = {
+  log: console.log,
+  error: console.error,
+  warn: console.warn,
+  debug: console.debug
+}
+
+console.log = (...args) => {
+  originalConsole.log.apply(console, args)
+  sendLogToControl('LOG', args)
+}
+
+console.error = (...args) => {
+  originalConsole.error.apply(console, args)
+  sendLogToControl('ERROR', args)
+}
+
+console.warn = (...args) => {
+  originalConsole.warn.apply(console, args)
+  sendLogToControl('WARN', args)
+}
+
+console.debug = (...args) => {
+  (originalConsole.debug || originalConsole.log).apply(console, args)
+  sendLogToControl('DEBUG', args)
+}
+
 // 設定ファイルのパス
 const configPath = path.join(app.getPath("userData"), "slack-config.json")
 const usersDataPath = path.join(app.getPath("userData"), "slack-users.json")
@@ -515,5 +559,16 @@ ipcMain.handle("set-local-emojis-data", () => {
     return { success: false, error: 'カスタム絵文字データが見つかりません' }
   } catch (error) {
     return { success: false, error: error.message }
+  }
+})
+
+// display.js からのデバッグログを中継
+ipcMain.on('debug-log-from-display', (event, logData) => {
+  if (controlWindow && !controlWindow.isDestroyed()) {
+    try {
+      controlWindow.webContents.send('debug-log-from-display', logData)
+    } catch (error) {
+      // IPC送信エラーは無視
+    }
   }
 })

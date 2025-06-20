@@ -2,6 +2,51 @@
  * 透過背景テキスト表示機能
  */
 
+// デバッグログをcontrolに送信
+function sendLogToControl(level, args) {
+  if (typeof require !== "undefined") {
+    try {
+      const { ipcRenderer } = require("electron")
+      ipcRenderer.send('debug-log-from-display', {
+        level: level,
+        message: args,
+        timestamp: Date.now(),
+        source: 'DISPLAY'
+      })
+    } catch (error) {
+      // IPC送信エラーは無視
+    }
+  }
+}
+
+// コンソールログをオーバーライド
+const originalConsole = {
+  log: console.log,
+  error: console.error,
+  warn: console.warn,
+  debug: console.debug
+}
+
+console.log = (...args) => {
+  originalConsole.log.apply(console, args)
+  sendLogToControl('LOG', args)
+}
+
+console.error = (...args) => {
+  originalConsole.error.apply(console, args)
+  sendLogToControl('ERROR', args)
+}
+
+console.warn = (...args) => {
+  originalConsole.warn.apply(console, args)
+  sendLogToControl('WARN', args)
+}
+
+console.debug = (...args) => {
+  (originalConsole.debug || originalConsole.log).apply(console, args)
+  sendLogToControl('DEBUG', args)
+}
+
 // Slack絵文字マッピング
 const SLACK_EMOJI_MAP = {
   // よく使われる絵文字

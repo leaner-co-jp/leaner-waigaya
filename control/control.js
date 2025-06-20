@@ -2,6 +2,7 @@ const { ipcRenderer } = require("electron")
 
 class SlackIntegration {
   constructor() {
+    this.setupDebugLogging()
     this.isConnected = false
     this.botToken = ""
     this.appToken = ""
@@ -14,35 +15,96 @@ class SlackIntegration {
     this.emojisLoaded = false // カスタム絵文字読み込み状態を追加
 
     this.setupSlackListeners()
-    this.setupDebugLogging()
+    this.setupExternalLogListeners()
   }
 
   setupDebugLogging() {
     // コンソールログをUI上にも表示
     const originalLog = console.log
     const originalError = console.error
+    const originalWarn = console.warn
+    const originalDebug = console.debug
 
     console.log = (...args) => {
       originalLog.apply(console, args)
-      this.addDebugLog("LOG", args.join(" "))
+      this.addDebugLog("[CONTROL] LOG", this.formatLogMessage(args))
+    }
+
+    console.debug = (...args) => {
+      originalDebug ? originalDebug.apply(console, args) : originalLog.apply(console, args)
+      this.addDebugLog("[CONTROL] DEBUG", this.formatLogMessage(args))
+    }
+
+    console.warn = (...args) => {
+      originalWarn ? originalWarn.apply(console, args) : originalLog.apply(console, args)
+      this.addDebugLog("[CONTROL] WARN", this.formatLogMessage(args))
     }
 
     console.error = (...args) => {
       originalError.apply(console, args)
-      this.addDebugLog("ERROR", args.join(" "))
+      this.addDebugLog("[CONTROL] ERROR", this.formatLogMessage(args))
     }
+  }
+  
+  // ログメッセージをフォーマットする
+  formatLogMessage(args) {
+    return args.map(arg => {
+      if (typeof arg === 'object' && arg !== null) {
+        try {
+          return JSON.stringify(arg, null, 2)
+        } catch (error) {
+          return String(arg)
+        }
+      }
+      return String(arg)
+    }).join(' ')
   }
 
   addDebugLog(level, message) {
     const debugLog = document.getElementById("debugLog")
     if (debugLog) {
       const timestamp = new Date().toLocaleTimeString()
-      const logEntry = `[${timestamp}] ${level}: ${message}\n`
-      debugLog.textContent += logEntry
+      const logEntry = `[${timestamp}] ${level}: ${message}`
+      
+      // 改行要素を作成して追加
+      const logLine = document.createElement('div')
+      logLine.textContent = logEntry
+      logLine.className = 'debug-log-line'
+      debugLog.appendChild(logLine)
+      
+      // 最大行数を制限（1000行で古いログを削除）
+      const lines = debugLog.children
+      if (lines.length > 1000) {
+        // 古い行を削除
+        while (lines.length > 1000) {
+          debugLog.removeChild(lines[0])
+        }
+      }
+      
+      // 自動スクロール
       debugLog.scrollTop = debugLog.scrollHeight
     }
   }
-  
+
+  // 外部プロセスからのログリスナーを設定
+  setupExternalLogListeners() {
+    if (typeof require !== "undefined") {
+      const { ipcRenderer } = require("electron")
+      
+      // main.js からのログを受信
+      ipcRenderer.on('debug-log-from-main', (event, logData) => {
+        const formattedMessage = this.formatLogMessage(logData.message)
+        this.addDebugLog(`[${logData.source}] ${logData.level}`, formattedMessage)
+      })
+      
+      // display.js からのログを受信
+      ipcRenderer.on('debug-log-from-display', (event, logData) => {
+        const formattedMessage = this.formatLogMessage(logData.message)
+        this.addDebugLog(`[${logData.source}] ${logData.level}`, formattedMessage)
+      })
+    }
+  }
+
   // カスタム絵文字を取得
   async loadCustomEmojis() {
     if (!this.isConnected) {
@@ -67,9 +129,16 @@ class SlackIntegration {
           `最新データ取得済み (${Object.keys(emojiResult.emojis).length}個)`,
           "connected"
         )
-        console.log(`🎨 カスタム絵文字取得完了: ${Object.keys(emojiResult.emojis).length}個`)
+        console.log(
+          `🎨 カスタム絵文字取得完了: ${
+            Object.keys(emojiResult.emojis).length
+          }個`
+        )
       } else {
-        this.updateEmojisStatus("取得失敗: " + (emojiResult.error || "不明なエラー"), "error")
+        this.updateEmojisStatus(
+          "取得失敗: " + (emojiResult.error || "不明なエラー"),
+          "error"
+        )
       }
 
       if (loadBtn) {
@@ -87,30 +156,32 @@ class SlackIntegration {
       }
     }
   }
-  
+
   // ローカルデータを読み込み
   async loadLocalData() {
     try {
       // ユーザーデータをローカルから読み込み
-      const usersResult = await ipcRenderer.invoke('set-local-users-data')
+      const usersResult = await ipcRenderer.invoke("set-local-users-data")
       if (usersResult.success) {
         this.usersLoaded = true
-        console.log('📁 ローカルユーザーデータをSlackWatcherに設定しました')
+        console.log("📁 ローカルユーザーデータをSlackWatcherに設定しました")
       }
-      
+
       // カスタム絵文字データをローカルから読み込み
-      const emojisResult = await ipcRenderer.invoke('set-local-emojis-data')
+      const emojisResult = await ipcRenderer.invoke("set-local-emojis-data")
       if (emojisResult.success && emojisResult.data) {
         this.emojisLoaded = true
         // ローカルデータをdisplay側に送信
         this.sendCustomEmojisToDisplay(emojisResult.data)
-        console.log('📁 ローカルカスタム絵文字データをSlackWatcherに設定しました')
+        console.log(
+          "📁 ローカルカスタム絵文字データをSlackWatcherに設定しました"
+        )
       }
     } catch (error) {
-      console.error('ローカルデータ読み込みエラー:', error)
+      console.error("ローカルデータ読み込みエラー:", error)
     }
   }
-  
+
   // カスタム絵文字をdisplay側に送信
   sendCustomEmojisToDisplay(customEmojis) {
     try {
@@ -279,33 +350,39 @@ class SlackIntegration {
       if (result.success) {
         this.isConnected = true
         this.updateStatus("接続済み", "connected")
-        
+
         // ローカルデータを読み込んで初期化
         await this.loadLocalData()
-        
+
         // ユーザー一覧の状態を更新
         if (!this.usersLoaded) {
           this.updateUsersStatus("未取得 - リロードしてください", "warning")
         } else {
           this.updateUsersStatus("キャッシュあり", "connected")
         }
-        
+
         // カスタム絵文字の初期状態を設定
         if (!this.emojisLoaded) {
-          this.updateEmojisStatus("未取得 - 取得ボタンを押してください", "warning")
+          this.updateEmojisStatus(
+            "未取得 - 取得ボタンを押してください",
+            "warning"
+          )
         } else {
           this.updateEmojisStatus("キャッシュあり", "connected")
         }
-        
+
         // チャンネル監視状態を更新
         if (this.watchedChannels.length > 0) {
-          this.updateChannelsStatus(`${this.watchedChannels.length}チャンネル監視中`, "connected")
+          this.updateChannelsStatus(
+            `${this.watchedChannels.length}チャンネル監視中`,
+            "connected"
+          )
           console.log("✅ 接続成功 - 監視開始:", this.watchedChannels)
         } else {
           this.updateChannelsStatus("0チャンネル監視中", "warning")
           console.log("✅ 接続成功 - 監視チャンネルなし")
         }
-        
+
         await this.updateUI()
         await this.saveConfig()
       } else {
@@ -384,7 +461,7 @@ class SlackIntegration {
     const addBtn = dialogRoot.getElementById
       ? dialogRoot.getElementById("addChannelBtn")
       : dialogRoot.querySelector("#addChannelBtn")
-      
+
     select.innerHTML = ""
     const channelsToShow = filteredChannels || this.availableChannels
     if (channelsToShow.length === 0) {
@@ -410,13 +487,11 @@ class SlackIntegration {
         select.appendChild(option)
       })
     }
-    
+
     // ボタンの有効/無効化
     const hasChannels = this.isConnected && this.availableChannels.length > 0
-    if (select)
-      select.disabled = !hasChannels
-    if (searchInput)
-      searchInput.disabled = !hasChannels
+    if (select) select.disabled = !hasChannels
+    if (searchInput) searchInput.disabled = !hasChannels
     if (loadBtn) loadBtn.disabled = !this.isConnected
     if (addBtn) addBtn.disabled = !hasChannels
   }
@@ -439,14 +514,16 @@ class SlackIntegration {
 
   async addChannel(dialogRoot = document) {
     // ダイアログコンテキスト対応の要素取得
-    const select = dialogRoot.querySelector ? dialogRoot.querySelector("#channelSelect") : document.getElementById("channelSelect")
-    
+    const select = dialogRoot.querySelector
+      ? dialogRoot.querySelector("#channelSelect")
+      : document.getElementById("channelSelect")
+
     if (!select) {
       console.error("channelSelect要素が見つかりません")
       alert("チャンネル選択ボックスが見つかりません")
       return
     }
-    
+
     const channelId = select.value
     console.log("選択されたチャンネルID:", channelId)
 
@@ -471,16 +548,19 @@ class SlackIntegration {
     }
 
     ipcRenderer.send("slack-add-channel", channelId)
-    
+
     // チャンネル監視状態を更新
-    this.updateChannelsStatus(`${this.watchedChannels.length}チャンネル監視中`, "connected")
-    
+    this.updateChannelsStatus(
+      `${this.watchedChannels.length}チャンネル監視中`,
+      "connected"
+    )
+
     console.log(`✅ チャンネル追加完了: #${channelName} (${channelId})`)
-    
+
     await this.updateUI()
     // チャンネル追加時に設定を保存
     await this.saveConfig()
-    
+
     // 選択をクリア
     select.value = ""
   }
@@ -489,14 +569,17 @@ class SlackIntegration {
     this.watchedChannels = this.watchedChannels.filter((id) => id !== channelId)
     delete this.watchedChannelData[channelId] // チャンネルデータも削除
     ipcRenderer.send("slack-remove-channel", channelId)
-    
+
     // チャンネル監視状態を更新
     if (this.watchedChannels.length > 0) {
-      this.updateChannelsStatus(`${this.watchedChannels.length}チャンネル監視中`, "connected")
+      this.updateChannelsStatus(
+        `${this.watchedChannels.length}チャンネル監視中`,
+        "connected"
+      )
     } else {
       this.updateChannelsStatus("0チャンネル監視中", "warning")
     }
-    
+
     await this.updateUI()
     // チャンネル削除時に設定を保存
     await this.saveConfig()
@@ -504,7 +587,7 @@ class SlackIntegration {
 
   async updateUI(dialogRoot = document) {
     this.updateChannelSelect(undefined, dialogRoot)
-    
+
     // 接続状態の初期化
     if (!this.isConnected) {
       this.updateStatus("未接続", "")
@@ -512,7 +595,7 @@ class SlackIntegration {
       this.updateEmojisStatus("未取得", "")
       this.updateChannelsStatus("0チャンネル監視中", "")
     }
-    
+
     // 監視中チャンネル数の表示を更新
     const channelCountEl = dialogRoot.getElementById
       ? dialogRoot.getElementById("channelCount")
@@ -520,16 +603,19 @@ class SlackIntegration {
     if (channelCountEl) {
       channelCountEl.textContent = this.watchedChannels.length
     }
-    
+
     // チャンネル監視状態の更新
     if (this.isConnected) {
       if (this.watchedChannels.length > 0) {
-        this.updateChannelsStatus(`${this.watchedChannels.length}チャンネル監視中`, "connected")
+        this.updateChannelsStatus(
+          `${this.watchedChannels.length}チャンネル監視中`,
+          "connected"
+        )
       } else {
         this.updateChannelsStatus("0チャンネル監視中", "warning")
       }
     }
-    
+
     // 監視中チャンネル名リストの表示を更新
     const channelListEl = dialogRoot.getElementById
       ? dialogRoot.getElementById("watchedChannelList")
@@ -550,7 +636,7 @@ class SlackIntegration {
             return `
               <div class="flex items-center justify-between mb-1">
                 <span class="channel-item active flex-1">#${name}</span>
-                <button 
+                <button
                   onclick="window.slackIntegration.removeChannel('${id}')"
                   class="text-red-500 hover:text-red-700 text-xs ml-2 px-1"
                   title="監視を停止"
@@ -563,7 +649,7 @@ class SlackIntegration {
           .join("")
       }
     }
-    
+
     // ユーザーリロードボタンの状態更新
     const reloadUsersBtn = dialogRoot.getElementById
       ? dialogRoot.getElementById("reloadUsersBtn")
@@ -571,7 +657,7 @@ class SlackIntegration {
     if (reloadUsersBtn) {
       reloadUsersBtn.disabled = !this.isConnected
     }
-    
+
     // カスタム絵文字取得ボタンの状態更新
     const loadEmojisBtn = dialogRoot.getElementById
       ? dialogRoot.getElementById("loadEmojisBtn")
@@ -579,7 +665,7 @@ class SlackIntegration {
     if (loadEmojisBtn) {
       loadEmojisBtn.disabled = !this.isConnected
     }
-    
+
     // チャンネル管理ボタンの状態更新
     const manageChannelsBtn = dialogRoot.getElementById
       ? dialogRoot.getElementById("manageChannelsBtn")
@@ -587,7 +673,7 @@ class SlackIntegration {
     if (manageChannelsBtn) {
       manageChannelsBtn.disabled = !this.isConnected
     }
-    
+
     // トークン欄も反映
     this.reflectStateToUI(dialogRoot)
   }
@@ -600,19 +686,19 @@ class SlackIntegration {
   updateStatus(message, status = "") {
     const statusEl = document.getElementById("slackStatus")
     const iconEl = document.getElementById("slackConnectionIcon")
-    const sectionEl = statusEl?.closest('.status-section')
-    
+    const sectionEl = statusEl?.closest(".status-section")
+
     if (statusEl) {
       statusEl.textContent = message
     }
-    
+
     if (sectionEl) {
       sectionEl.classList.remove("connected", "error", "warning")
       if (status) {
         sectionEl.classList.add(status)
       }
     }
-    
+
     if (iconEl) {
       if (status === "connected") {
         iconEl.textContent = "🟢"
@@ -625,7 +711,7 @@ class SlackIntegration {
       }
     }
   }
-  
+
   /**
    * ユーザー一覧の状態を更新する
    * @param {string} message - 表示するメッセージ
@@ -634,19 +720,19 @@ class SlackIntegration {
   updateUsersStatus(message, status = "") {
     const statusEl = document.getElementById("usersStatus")
     const iconEl = document.getElementById("usersStatusIcon")
-    const sectionEl = statusEl?.closest('.status-section')
-    
+    const sectionEl = statusEl?.closest(".status-section")
+
     if (statusEl) {
       statusEl.textContent = message
     }
-    
+
     if (sectionEl) {
       sectionEl.classList.remove("connected", "error", "warning")
       if (status) {
         sectionEl.classList.add(status)
       }
     }
-    
+
     if (iconEl) {
       if (status === "connected") {
         iconEl.textContent = "🟢"
@@ -659,7 +745,7 @@ class SlackIntegration {
       }
     }
   }
-  
+
   /**
    * チャンネル監視の状態を更新する
    * @param {string} message - 表示するメッセージ
@@ -668,15 +754,15 @@ class SlackIntegration {
   updateChannelsStatus(message, status = "") {
     const statusEl = document.getElementById("channelsStatus")
     const iconEl = document.getElementById("channelsStatusIcon")
-    const sectionEl = statusEl?.closest('.status-section')
-    
+    const sectionEl = statusEl?.closest(".status-section")
+
     if (sectionEl) {
       sectionEl.classList.remove("connected", "error", "warning")
       if (status) {
         sectionEl.classList.add(status)
       }
     }
-    
+
     if (iconEl) {
       if (status === "connected") {
         iconEl.textContent = "🟢"
@@ -689,7 +775,7 @@ class SlackIntegration {
       }
     }
   }
-  
+
   /**
    * カスタム絵文字の状態を更新する
    * @param {string} message - 表示するメッセージ
@@ -698,19 +784,19 @@ class SlackIntegration {
   updateEmojisStatus(message, status = "") {
     const statusEl = document.getElementById("emojisStatus")
     const iconEl = document.getElementById("emojisStatusIcon")
-    const sectionEl = statusEl?.closest('.status-section')
-    
+    const sectionEl = statusEl?.closest(".status-section")
+
     if (statusEl) {
       statusEl.textContent = message
     }
-    
+
     if (sectionEl) {
       sectionEl.classList.remove("connected", "error", "warning")
       if (status) {
         sectionEl.classList.add(status)
       }
     }
-    
+
     if (iconEl) {
       if (status === "connected") {
         iconEl.textContent = "🟢"
@@ -1003,8 +1089,11 @@ document.addEventListener("DOMContentLoaded", () => {
     reloadUsersBtn.onclick = async () => {
       reloadUsersBtn.disabled = true
       reloadUsersBtn.textContent = "リロード中..."
-      slackIntegration.updateUsersStatus("ユーザー一覧をリロード中...", "warning")
-      
+      slackIntegration.updateUsersStatus(
+        "ユーザー一覧をリロード中...",
+        "warning"
+      )
+
       try {
         const result = await ipcRenderer.invoke("slack-reload-users")
         if (result.success) {
@@ -1012,17 +1101,23 @@ document.addEventListener("DOMContentLoaded", () => {
           slackIntegration.updateUsersStatus("最新データ取得済み", "connected")
           console.log("ユーザー一覧をリロードしました")
         } else {
-          slackIntegration.updateUsersStatus("リロード失敗: " + (result.error || "不明なエラー"), "error")
+          slackIntegration.updateUsersStatus(
+            "リロード失敗: " + (result.error || "不明なエラー"),
+            "error"
+          )
         }
       } catch (e) {
-        slackIntegration.updateUsersStatus("リロードエラー: " + e.message, "error")
+        slackIntegration.updateUsersStatus(
+          "リロードエラー: " + e.message,
+          "error"
+        )
       }
-      
+
       reloadUsersBtn.disabled = false
       reloadUsersBtn.textContent = "リロード"
     }
   }
-  
+
   const loadEmojisBtn = document.getElementById("loadEmojisBtn")
   if (loadEmojisBtn) {
     loadEmojisBtn.onclick = async () => {
@@ -1041,7 +1136,7 @@ function toggleDebug() {
 function clearDebugLog() {
   const debugLog = document.getElementById("debugLog")
   if (debugLog) {
-    debugLog.textContent = ""
+    debugLog.innerHTML = ""
   }
 }
 
@@ -1107,14 +1202,14 @@ function showSlackConnection() {
   if (window.slackIntegration) {
     window.slackIntegration.reflectStateToUI(dialog)
   }
-  
+
   // イベントリスナー設定
   const connectBtn = dialog.querySelector("#connectSlackBtn")
   if (connectBtn)
     connectBtn.onclick = async () => {
       await window.slackIntegration.connect(dialog)
     }
-  
+
   const clearConfigBtn = dialog.querySelector("#clearConfigBtn")
   if (clearConfigBtn)
     clearConfigBtn.onclick = async () => {
@@ -1197,11 +1292,11 @@ function showChannelManagement() {
     window.slackIntegration.setupChannelSearch()
     updateCurrentWatchedChannels(dialog)
   }
-  
+
   // イベントリスナー設定
   const addChannelBtn = dialog.querySelector("#addChannelBtn")
   const channelSelect = dialog.querySelector("#channelSelect")
-  
+
   if (addChannelBtn) {
     console.log("チャンネル追加ボタンのイベントリスナーを設定しました")
     addChannelBtn.onclick = async () => {
@@ -1212,16 +1307,21 @@ function showChannelManagement() {
   } else {
     console.error("チャンネル追加ボタンが見つかりません")
   }
-  
+
   // チャンネル選択時のボタン有効化
   if (channelSelect && addChannelBtn) {
-    channelSelect.addEventListener('change', () => {
+    channelSelect.addEventListener("change", () => {
       const hasSelection = channelSelect.value && channelSelect.value !== ""
       addChannelBtn.disabled = !hasSelection
-      console.log("チャンネル選択変更:", channelSelect.value, "ボタン有効:", hasSelection)
+      console.log(
+        "チャンネル選択変更:",
+        channelSelect.value,
+        "ボタン有効:",
+        hasSelection
+      )
     })
   }
-  
+
   const loadChannelsBtn = dialog.querySelector("#loadChannelsBtn")
   if (loadChannelsBtn)
     loadChannelsBtn.onclick = async () => {
@@ -1235,9 +1335,10 @@ function showChannelManagement() {
 function updateCurrentWatchedChannels(dialogRoot = document) {
   const container = dialogRoot.querySelector("#currentWatchedChannels")
   if (!container || !window.slackIntegration) return
-  
+
   if (window.slackIntegration.watchedChannels.length === 0) {
-    container.innerHTML = '<span class="text-gray-500">監視中のチャンネルはありません</span>'
+    container.innerHTML =
+      '<span class="text-gray-500">監視中のチャンネルはありません</span>'
   } else {
     container.innerHTML = window.slackIntegration.watchedChannels
       .map((id) => {
@@ -1250,7 +1351,7 @@ function updateCurrentWatchedChannels(dialogRoot = document) {
         return `
           <div class="flex items-center justify-between mb-2 p-2 bg-green-50 border border-green-200 rounded">
             <span class="font-medium">#${name}</span>
-            <button 
+            <button
               onclick="window.slackIntegration.removeChannel('${id}'); updateCurrentWatchedChannels(document.getElementById('channelManagementDialog'))"
               class="text-red-500 hover:text-red-700 text-sm px-2 py-1 hover:bg-red-50 rounded"
               title="監視を停止"

@@ -58,7 +58,7 @@
               🔌 接続設定
             </button>
           </div>
-          
+
           <!-- Slack接続状況 -->
           <div class="status-section mb-4">
             <div class="flex items-center mb-2">
@@ -69,7 +69,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- ユーザー一覧取得状況 -->
           <div class="status-section mb-4">
             <div class="flex items-center justify-between mb-2">
@@ -77,7 +77,9 @@
                 <div class="status-icon" id="usersStatusIcon">⚪</div>
                 <div class="ml-2">
                   <div class="font-medium">ユーザー一覧</div>
-                  <div class="text-sm text-gray-600" id="usersStatus">未取得</div>
+                  <div class="text-sm text-gray-600" id="usersStatus">
+                    未取得
+                  </div>
                 </div>
               </div>
               <button
@@ -89,7 +91,7 @@
               </button>
             </div>
           </div>
-          
+
           <!-- カスタム絵文字取得状況 -->
           <div class="status-section mb-4">
             <div class="flex items-center justify-between mb-2">
@@ -97,7 +99,9 @@
                 <div class="status-icon" id="emojisStatusIcon">⚪</div>
                 <div class="ml-2">
                   <div class="font-medium">カスタム絵文字</div>
-                  <div class="text-sm text-gray-600" id="emojisStatus">未取得</div>
+                  <div class="text-sm text-gray-600" id="emojisStatus">
+                    未取得
+                  </div>
                 </div>
               </div>
               <button
@@ -109,7 +113,7 @@
               </button>
             </div>
           </div>
-          
+
           <!-- 監視チャンネル状況 -->
           <div class="status-section mb-4">
             <div class="flex items-center justify-between mb-2">
@@ -183,31 +187,6 @@
               >
                 設定クリア
               </button>
-              <button
-                onclick="toggleDebug()"
-                class="bg-gray-600 text-white rounded px-4 py-2 hover:bg-gray-800"
-              >
-                デバッグ表示
-              </button>
-            </div>
-            <div class="debug-info" id="debugInfo" style="display: none">
-              <h4 class="font-bold mb-2">🔍 デバッグ情報</h4>
-              <div
-                id="debugLog"
-                class="bg-gray-100 border border-gray-300 rounded p-2 mb-2 text-xs h-32 overflow-y-auto"
-              ></div>
-              <button
-                onclick="clearDebugLog()"
-                class="bg-gray-400 text-white rounded px-3 py-1 hover:bg-gray-600 mr-2 mb-2"
-              >
-                ログクリア
-              </button>
-              <button
-                onclick="toggleDebug()"
-                class="bg-gray-600 text-white rounded px-3 py-1 hover:bg-gray-800 mb-2"
-              >
-                デバッグ表示切替
-              </button>
             </div>
           </div>
         </div>
@@ -228,11 +207,16 @@
             <!-- 現在の監視チャンネル -->
             <div class="mb-4">
               <h3 class="font-semibold mb-2">監視中のチャンネル</h3>
-              <div id="currentWatchedChannels" class="bg-gray-50 border rounded p-3 min-h-[60px]">
-                <span class="text-gray-500">監視中のチャンネルはありません</span>
+              <div
+                id="currentWatchedChannels"
+                class="bg-gray-50 border rounded p-3 min-h-[60px]"
+              >
+                <span class="text-gray-500"
+                  >監視中のチャンネルはありません</span
+                >
               </div>
             </div>
-            
+
             <!-- チャンネル検索・追加 -->
             <div class="mb-4">
               <label for="channelSearch" class="block mb-1 font-semibold"
@@ -373,11 +357,25 @@
         </div>
 
         <div
-          class="queue-list border border-gray-300 rounded min-h-[100px] p-2 bg-gray-50"
+          class="queue-list border border-gray-300 rounded min-h-[100px] max-h-[300px] overflow-y-scroll p-2 bg-gray-50"
           id="queueList"
         >
           キューは空です
         </div>
+      </div>
+
+      <div class="debug-info" id="debugInfo">
+        <h4 class="font-bold mb-2">🔍 デバッグ情報</h4>
+        <div
+          id="debugLog"
+          class="bg-gray-100 border border-gray-300 rounded p-2 mb-2 text-xs h-32 overflow-y-auto"
+        ></div>
+        <button
+          onclick="clearDebugLog()"
+          class="bg-gray-400 text-white rounded px-3 py-1 hover:bg-gray-600 mr-2 mb-2"
+        >
+          ログクリア
+        </button>
       </div>
     </div>
 
