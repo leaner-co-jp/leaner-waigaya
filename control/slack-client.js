@@ -20,8 +20,8 @@ class SlackWatcher {
   async updateConfig(config) {
     this.config = { ...this.config, ...config }
     this.webClient = new WebClient(this.config.botToken)
-    // ユーザー情報を一括取得
-    await this.fetchAllUsers()
+    // ユーザー情報の一括取得は初回や明示的なリロード時のみ行う
+    // await this.fetchAllUsers() ← 削除
 
     // 監視チャンネルを復元
     if (config.channels && Array.isArray(config.channels)) {
@@ -505,6 +505,11 @@ class SlackWatcher {
     } catch (error) {
       console.error("❌ ユーザー一覧取得エラー:", error)
     }
+  }
+
+  // ユーザー一覧を明示的にリロード
+  async reloadUsers() {
+    await this.fetchAllUsers()
   }
 }
 

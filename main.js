@@ -341,3 +341,12 @@ ipcMain.handle("load-config", () => {
     return { success: false, error: error.message, config: null }
   }
 })
+
+ipcMain.handle("slack-reload-users", async () => {
+  try {
+    await slackWatcher.reloadUsers()
+    return { success: true }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+})

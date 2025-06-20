@@ -688,6 +688,28 @@ document.addEventListener("DOMContentLoaded", () => {
     bgAlphaInput.addEventListener("input", saveSettingsAndUpdateAlpha)
   if (fontColorInput)
     fontColorInput.addEventListener("input", saveSettingsAndUpdateAlpha)
+
+  const reloadUsersBtn = document.getElementById("reloadUsersBtn")
+  if (reloadUsersBtn) {
+    reloadUsersBtn.onclick = async () => {
+      reloadUsersBtn.disabled = true
+      reloadUsersBtn.textContent = "リロード中..."
+      try {
+        const result = await ipcRenderer.invoke("slack-reload-users")
+        if (result.success) {
+          alert("ユーザー一覧をリロードしました")
+        } else {
+          alert(
+            "ユーザー一覧リロードに失敗: " + (result.error || "不明なエラー")
+          )
+        }
+      } catch (e) {
+        alert("ユーザー一覧リロード中にエラー: " + e.message)
+      }
+      reloadUsersBtn.disabled = false
+      reloadUsersBtn.textContent = "ユーザー一覧リロード"
+    }
+  }
 })
 
 // デバッグ用UI関数
