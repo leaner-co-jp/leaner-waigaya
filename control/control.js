@@ -92,13 +92,13 @@ class SlackIntegration {
       const { ipcRenderer } = require("electron")
       
       // main.js からのログを受信
-      ipcRenderer.on('debug-log-from-main', (event, logData) => {
+      ipcRenderer.on('debug-log-from-main', (_, logData) => {
         const formattedMessage = this.formatLogMessage(logData.message)
         this.addDebugLog(`[${logData.source}] ${logData.level}`, formattedMessage)
       })
       
       // display.js からのログを受信
-      ipcRenderer.on('debug-log-from-display', (event, logData) => {
+      ipcRenderer.on('debug-log-from-display', (_, logData) => {
         const formattedMessage = this.formatLogMessage(logData.message)
         this.addDebugLog(`[${logData.source}] ${logData.level}`, formattedMessage)
       })
@@ -194,7 +194,7 @@ class SlackIntegration {
   setupSlackListeners() {
     console.log("setupSlackListeners called")
     ipcRenderer.removeAllListeners("slack-message-received")
-    ipcRenderer.on("slack-message-received", (event, messageData) => {
+    ipcRenderer.on("slack-message-received", (_, messageData) => {
       console.log("slack-message-received", messageData)
       // 常に自動追加ON
       {
@@ -373,13 +373,10 @@ class SlackIntegration {
 
         // チャンネル監視状態を更新
         if (this.watchedChannels.length > 0) {
-          this.updateChannelsStatus(
-            `${this.watchedChannels.length}チャンネル監視中`,
-            "connected"
-          )
+          this.updateChannelsStatus("connected")
           console.log("✅ 接続成功 - 監視開始:", this.watchedChannels)
         } else {
-          this.updateChannelsStatus("0チャンネル監視中", "warning")
+          this.updateChannelsStatus("warning")
           console.log("✅ 接続成功 - 監視チャンネルなし")
         }
 
@@ -407,7 +404,7 @@ class SlackIntegration {
       this.updateStatus("切断しました", "")
       this.updateUsersStatus("未取得", "")
       this.updateEmojisStatus("未取得", "")
-      this.updateChannelsStatus("0チャンネル監視中", "")
+      this.updateChannelsStatus("")
       await this.updateUI()
     } catch (error) {
       this.updateStatus(`切断エラー: ${error.message}`, "error")
@@ -572,12 +569,9 @@ class SlackIntegration {
 
     // チャンネル監視状態を更新
     if (this.watchedChannels.length > 0) {
-      this.updateChannelsStatus(
-        `${this.watchedChannels.length}チャンネル監視中`,
-        "connected"
-      )
+      this.updateChannelsStatus("connected")
     } else {
-      this.updateChannelsStatus("0チャンネル監視中", "warning")
+      this.updateChannelsStatus("warning")
     }
 
     await this.updateUI()
@@ -593,7 +587,7 @@ class SlackIntegration {
       this.updateStatus("未接続", "")
       this.updateUsersStatus("未取得", "")
       this.updateEmojisStatus("未取得", "")
-      this.updateChannelsStatus("0チャンネル監視中", "")
+      this.updateChannelsStatus("")
     }
 
     // 監視中チャンネル数の表示を更新
@@ -607,12 +601,9 @@ class SlackIntegration {
     // チャンネル監視状態の更新
     if (this.isConnected) {
       if (this.watchedChannels.length > 0) {
-        this.updateChannelsStatus(
-          `${this.watchedChannels.length}チャンネル監視中`,
-          "connected"
-        )
+        this.updateChannelsStatus("connected")
       } else {
-        this.updateChannelsStatus("0チャンネル監視中", "warning")
+        this.updateChannelsStatus("warning")
       }
     }
 
@@ -748,10 +739,9 @@ class SlackIntegration {
 
   /**
    * チャンネル監視の状態を更新する
-   * @param {string} message - 表示するメッセージ
    * @param {string} status - 状態クラス（"connected" | "error" | "warning" | ""）
    */
-  updateChannelsStatus(message, status = "") {
+  updateChannelsStatus(status = "") {
     const statusEl = document.getElementById("channelsStatus")
     const iconEl = document.getElementById("channelsStatusIcon")
     const sectionEl = statusEl?.closest(".status-section")
@@ -937,9 +927,6 @@ class TextQueue {
     }, 3000) // 固定3秒で次のテキストに進む
   }
 
-  updateSettings() {
-    // 表示時間とフェード時間の設定は削除済み
-  }
 
   sendToDisplay(text, metadata = null) {
     try {
@@ -1367,8 +1354,6 @@ window.toggleDebug = toggleDebug
 window.clearDebugLog = clearDebugLog
 window.toggleSetupGuide = toggleSetupGuide
 window.scrollToTokenInput = scrollToTokenInput
-
-// 使用されていない関数を削除しました
 
 // サンプルメッセージを追加する関数
 function addSampleMessage() {

@@ -133,13 +133,10 @@ const SLACK_EMOJI_MAP = {
 class DisplayManager {
   constructor() {
     this.textContainer = document.getElementById("text-container")
-    this.displayedTexts = []
     this.textIdCounter = 0
     this.customEmojis = {} // カスタム絵文字キャッシュ
-    // this.maxTexts = 10 // 最大表示数
 
     this.initializeIPC()
-    // this.clearTestDisplay()
   }
 
   /**
@@ -163,50 +160,15 @@ class DisplayManager {
 
       const messageItem = this.createSlackMessageElement(safeData)
       this.addToContainer(messageItem)
-      // this.startFadeInAnimation(messageItem)
-      // this.trackDisplayedText(messageItem)
-      // this.enforceMaxTexts()
 
-      // 表示時に最前面ON
-      // if (typeof require !== "undefined") {
-      //   const { ipcRenderer } = require("electron")
-      //   ipcRenderer.send("set-always-on-top", true)
-      // }
 
-      // 表示時間とフェード時間の機能は削除済み
 
       console.log("Slackメッセージ表示完了")
 
-      // setTimeout(() => this.updateWindowSize(), 100)
     } catch (error) {
       this.handleSlackDisplayError(error, text, metadata)
     }
   }
-
-  /**
-   * 全てのテキストをクリア
-   */
-  // clearAllTexts() {
-  //   this.displayedTexts.forEach((item) => {
-  //     item.element.classList.add("fade-out")
-  //     setTimeout(() => {
-  //       if (item.element.parentNode) {
-  //         item.element.parentNode.removeChild(item.element)
-  //       }
-  //     }, 500)
-  //   })
-  //   this.displayedTexts = []
-
-  //   // 全てのテキストがクリアされた時に最前面表示を解除
-  //   // if (typeof require !== "undefined") {
-  //   //   const { ipcRenderer } = require("electron")
-  //   //   console.log("🔧 全テキストクリア: 最前面表示を解除")
-  //   //   ipcRenderer.send("set-always-on-top", false)
-  //   // }
-
-  //   // ウィンドウサイズを最小に更新
-  //   // setTimeout(() => this.updateWindowSize(), 100)
-  // }
 
   // プライベートメソッド
 
@@ -383,54 +345,9 @@ class DisplayManager {
     this.textContainer.insertBefore(element, this.textContainer.firstChild)
   }
 
-  /**
-   * フェードインアニメーションを開始
-   * @param {HTMLElement} element - アニメーションする要素
-   */
-  startFadeInAnimation(element) {
-    setTimeout(() => {
-      element.classList.remove("fade-in")
-    }, 10)
-  }
 
-  /**
-   * 表示中のテキストを追跡
-   * @param {HTMLElement} element - 追跡する要素
-   */
-  trackDisplayedText(element) {
-    this.displayedTexts.unshift({
-      id: element.id,
-      element: element,
-      timestamp: Date.now(),
-    })
-  }
 
-  /**
-   * 最大表示数を超えた場合の古いテキスト削除
-   */
-  // enforceMaxTexts() {
-  //   while (this.displayedTexts.length > this.maxTexts) {
-  //     this.removeOldestText()
-  //   }
-  // }
 
-  /**
-   * 最も古いテキストを削除
-   */
-  removeOldestText() {
-    if (this.displayedTexts.length === 0) return
-
-    const oldest = this.displayedTexts.pop()
-    oldest.element.classList.add("removing")
-
-    setTimeout(() => {
-      if (oldest.element.parentNode) {
-        oldest.element.parentNode.removeChild(oldest.element)
-      }
-      // 要素削除後にウィンドウサイズを更新
-      // this.updateWindowSize()
-    }, 300)
-  }
 
   /**
    * Slack表示エラーハンドリング
@@ -464,66 +381,17 @@ class DisplayManager {
         this.displaySlackMessage(text, metadata)
       })
 
-      // 通常テキストデータを受信
-      ipcRenderer.on("display-text-data", (_, text) => {
-        this.updateDisplayText(text)
-      })
-      
       // カスタム絵文字データを受信
       ipcRenderer.on("custom-emojis-data", (_, customEmojis) => {
         this.updateCustomEmojis(customEmojis)
       })
     }
   }
-
-  /**
-   * ウィンドウサイズを更新
-   */
-  // updateWindowSize() {
-  //   if (typeof require !== "undefined") {
-  //     const { ipcRenderer } = require("electron")
-
-  //     const hasContent = this.displayedTexts.length > 0
-
-  //     if (hasContent) {
-  //       setTimeout(() => {
-  //         const minHeight = 150
-  //         const maxHeightLimit = 800
-  //         const scrollHeight = this.textContainer.scrollHeight + 60
-
-  //         const contentHeight = Math.max(
-  //           minHeight,
-  //           Math.min(maxHeightLimit, scrollHeight)
-  //         )
-
-  //         console.log(
-  //           `🔧 ウィンドウサイズ更新: x${contentHeight} (スクロール: x${scrollHeight})`
-  //         )
-  //         ipcRenderer.send("update-window-size", {
-  //           height: Math.ceil(contentHeight),
-  //         })
-  //       }, 50)
-  //     } else {
-  //       console.log("🔧 ウィンドウサイズ更新: デフォルトサイズ")
-  //       ipcRenderer.send("update-window-size", { height: 150 })
-  //     }
-  //   }
-  // }
-
-  /**
-   * テスト用の初期表示をクリア
-   */
-  // clearTestDisplay() {
-  //   setTimeout(() => {
-  //     this.clearAllTexts()
-  //   }, 1000)
-  // }
 }
 
 // 初期化
-let displayManager
 document.addEventListener("DOMContentLoaded", () => {
-  displayManager = new DisplayManager()
+  new DisplayManager()
 })
 
 // localStorageから表示設定を取得

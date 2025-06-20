@@ -311,69 +311,27 @@ app.on("activate", () => {
   }
 })
 
-// 最前面表示の状態管理
-// let isAlwaysOnTopManuallySet = false
 
 // IPC通信の設定
-ipcMain.on("display-text", (event, text) => {
+ipcMain.on("display-text", (_, text) => {
   if (mainWindow) {
-    // if (text && text.trim()) {
-    //   // テキストがある場合は最前面に表示（手動設定されていない場合のみ）
-    //   if (!isAlwaysOnTopManuallySet) {
-    //     mainWindow.setAlwaysOnTop(true, "screen-saver")
-    //   }
-    // } else {
-    //   // テキストが空の場合は最前面から外す（手動設定されていない場合のみ）
-    //   if (!isAlwaysOnTopManuallySet) {
-    //     mainWindow.setAlwaysOnTop(false)
-    //   }
-    // }
-
     // データをレンダラープロセスに送信
     mainWindow.webContents.send("display-text-data", text)
   }
 })
 
-// 最前面表示の制御
-// ipcMain.on("set-always-on-top", (event, alwaysOnTop) => {
-//   if (mainWindow) {
-//     console.log(`🔧 最前面表示を手動設定: ${alwaysOnTop}`)
-//     mainWindow.setAlwaysOnTop(alwaysOnTop)
-//     isAlwaysOnTopManuallySet = true
 
-//     // 一定時間後に手動設定フラグをリセット（次のメッセージで自動制御を再開）
-//     setTimeout(() => {
-//       isAlwaysOnTopManuallySet = false
-//       console.log("🔧 最前面表示の手動設定をリセット")
-//     }, 5000) // 5秒後にリセット
-//   }
-// })
-
-// ウィンドウサイズの更新
-// ipcMain.on("update-window-size", (event, { height }) => {
-//   if (mainWindow) {
-//     // widthは変更せず、heightのみ動的に変更
-//     console.log(`🔧 ウィンドウ高さのみ更新: height=${height}`)
-//     mainWindow.setSize(600, height)
-//     // 位置変更はset-display-positionのみで行う
-//   }
-// })
 
 // Slackメッセージ表示
-ipcMain.on("display-slack-message", (event, data) => {
+ipcMain.on("display-slack-message", (_, data) => {
   if (mainWindow) {
-    // Slackメッセージの場合は最前面に表示（手動設定されていない場合のみ）
-    // if (!isAlwaysOnTopManuallySet) {
-    //   mainWindow.setAlwaysOnTop(true, "screen-saver")
-    // }
-
     // データをレンダラープロセスに送信
     mainWindow.webContents.send("display-slack-message-data", data)
   }
 })
 
 // Slack関連のIPC
-ipcMain.handle("slack-connect", async (event, config) => {
+ipcMain.handle("slack-connect", async (_, config) => {
   try {
     // 保存された設定も含めて読み込み
     const savedConfig = loadConfig()
@@ -405,7 +363,7 @@ ipcMain.handle("slack-disconnect", async () => {
   }
 })
 
-ipcMain.handle("slack-test-connection", async (event, config) => {
+ipcMain.handle("slack-test-connection", async (_, config) => {
   try {
     const tempWatcher = new SlackWatcher()
     tempWatcher.updateConfig(config)
@@ -423,11 +381,11 @@ ipcMain.handle("slack-get-channels", async () => {
   }
 })
 
-ipcMain.on("slack-add-channel", async (event, channelId) => {
+ipcMain.on("slack-add-channel", async (_, channelId) => {
   await slackWatcher.addWatchChannel(channelId)
 })
 
-ipcMain.on("slack-remove-channel", (event, channelId) => {
+ipcMain.on("slack-remove-channel", (_, channelId) => {
   slackWatcher.removeWatchChannel(channelId)
 })
 
@@ -439,7 +397,7 @@ ipcMain.handle("slack-get-status", () => {
 })
 
 // チャンネル情報を取得
-ipcMain.handle("slack-get-channel-info", async (event, channelId) => {
+ipcMain.handle("slack-get-channel-info", async (_, channelId) => {
   try {
     return await slackWatcher.getChannelInfo(channelId)
   } catch (error) {
@@ -448,7 +406,7 @@ ipcMain.handle("slack-get-channel-info", async (event, channelId) => {
 })
 
 // 設定保存
-ipcMain.handle("save-config", (event, config) => {
+ipcMain.handle("save-config", (_, config) => {
   try {
     return { success: saveConfig(config) }
   } catch (error) {
@@ -486,14 +444,14 @@ ipcMain.handle("slack-get-custom-emojis", async () => {
 })
 
 // カスタム絵文字をdisplay側に送信
-ipcMain.on("send-custom-emojis-to-display", (event, customEmojis) => {
+ipcMain.on("send-custom-emojis-to-display", (_, customEmojis) => {
   if (mainWindow) {
     mainWindow.webContents.send("custom-emojis-data", customEmojis)
   }
 })
 
 // ユーザーデータ保存
-ipcMain.handle("save-users-data", (event, usersData) => {
+ipcMain.handle("save-users-data", (_, usersData) => {
   try {
     return { success: saveUsersData(usersData) }
   } catch (error) {
@@ -512,7 +470,7 @@ ipcMain.handle("load-users-data", () => {
 })
 
 // カスタム絵文字データ保存
-ipcMain.handle("save-emojis-data", (event, emojisData) => {
+ipcMain.handle("save-emojis-data", (_, emojisData) => {
   try {
     return { success: saveEmojisData(emojisData) }
   } catch (error) {
@@ -563,7 +521,7 @@ ipcMain.handle("set-local-emojis-data", () => {
 })
 
 // display.js からのデバッグログを中継
-ipcMain.on('debug-log-from-display', (event, logData) => {
+ipcMain.on('debug-log-from-display', (_, logData) => {
   if (controlWindow && !controlWindow.isDestroyed()) {
     try {
       controlWindow.webContents.send('debug-log-from-display', logData)

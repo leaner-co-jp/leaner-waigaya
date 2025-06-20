@@ -21,8 +21,6 @@ class SlackWatcher {
   async updateConfig(config) {
     this.config = { ...this.config, ...config }
     this.webClient = new WebClient(this.config.botToken)
-    // ユーザー情報の一括取得は初回や明示的なリロード時のみ行う
-    // await this.fetchAllUsers() ← 削除
 
     // 監視チャンネルを復元
     if (config.channels && Array.isArray(config.channels)) {
@@ -72,7 +70,6 @@ class SlackWatcher {
       })
 
       // Socket Mode クライアントを新しく作成
-      const { SocketModeClient } = require("@slack/socket-mode")
       this.socketClient = new SocketModeClient({
         appToken: this.config.appToken,
         logLevel: "debug",
