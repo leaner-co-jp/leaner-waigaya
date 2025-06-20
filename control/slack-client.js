@@ -492,7 +492,7 @@ class SlackWatcher {
     return this.isConnected
   }
 
-  async fetchAllUsers() {
+  async fetchAllUsers(saveToLocal = true, saveCallback = null) {
     try {
       const result = await this.webClient.users.list()
       if (result.members && Array.isArray(result.members)) {
@@ -500,6 +500,18 @@ class SlackWatcher {
           this.userCache[user.id] = user.profile
         })
         console.log(`✅ ユーザー情報を一括取得: ${result.members.length}件`)
+        
+        // ローカルに保存（コールバック経由）
+        if (saveToLocal && saveCallback && typeof saveCallback === 'function') {
+          try {
+            const saveResult = saveCallback(this.userCache)
+            if (saveResult) {
+              console.log('📁 ユーザーデータをローカルに保存しました')
+            }
+          } catch (saveError) {
+            console.warn('⚠️ ユーザーデータのローカル保存に失敗:', saveError)
+          }
+        }
       } else {
         console.warn("⚠️ ユーザー情報が取得できませんでした")
       }
@@ -507,14 +519,15 @@ class SlackWatcher {
       console.error("❌ ユーザー一覧取得エラー:", error)
     }
   }
+  
 
   // ユーザー一覧を明示的にリロード
-  async reloadUsers() {
-    await this.fetchAllUsers()
+  async reloadUsers(saveCallback = null) {
+    await this.fetchAllUsers(true, saveCallback)
   }
 
   // カスタム絵文字一覧を取得
-  async fetchCustomEmojis() {
+  async fetchCustomEmojis(saveToLocal = true, saveCallback = null) {
     try {
       console.log("🎨 カスタム絵文字取得開始...")
       const result = await this.webClient.emoji.list()
@@ -522,6 +535,19 @@ class SlackWatcher {
       if (result.emoji) {
         this.customEmojiCache = result.emoji
         console.log(`✅ カスタム絵文字を取得: ${Object.keys(result.emoji).length}個`)
+        
+        // ローカルに保存（コールバック経由）
+        if (saveToLocal && saveCallback && typeof saveCallback === 'function') {
+          try {
+            const saveResult = saveCallback(result.emoji)
+            if (saveResult) {
+              console.log('📁 カスタム絵文字データをローカルに保存しました')
+            }
+          } catch (saveError) {
+            console.warn('⚠️ カスタム絵文字データのローカル保存に失敗:', saveError)
+          }
+        }
+        
         return result.emoji
       } else {
         console.warn("⚠️ カスタム絵文字が取得できませんでした")
@@ -532,10 +558,23 @@ class SlackWatcher {
       return {}
     }
   }
+  
 
   // カスタム絵文字キャッシュを取得
   getCustomEmojis() {
     return this.customEmojiCache
+  }
+  
+  // ローカルユーザーデータを設定
+  setLocalUsersData(usersData) {
+    this.userCache = usersData || {}
+    console.log(`📁 ローカルユーザーデータを設定: ${Object.keys(this.userCache).length}件`)
+  }
+  
+  // ローカルカスタム絵文字データを設定
+  setLocalEmojisData(emojisData) {
+    this.customEmojiCache = emojisData || {}
+    console.log(`📁 ローカルカスタム絵文字データを設定: ${Object.keys(this.customEmojiCache).length}個`)
   }
 }
 

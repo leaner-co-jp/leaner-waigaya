@@ -13,6 +13,8 @@ let slackWatcher
 
 // 設定ファイルのパス
 const configPath = path.join(app.getPath("userData"), "slack-config.json")
+const usersDataPath = path.join(app.getPath("userData"), "slack-users.json")
+const emojisDataPath = path.join(app.getPath("userData"), "slack-emojis.json")
 
 // 設定を保存
 function saveConfig(config) {
@@ -85,6 +87,84 @@ function loadConfig() {
     }
   } catch (error) {
     console.error("❌ 設定読み込みエラー:", error)
+  }
+  return null
+}
+
+// ユーザーデータを保存
+function saveUsersData(usersData) {
+  try {
+    const dataToSave = {
+      users: usersData,
+      timestamp: Date.now(),
+      version: 1
+    }
+    fs.writeFileSync(usersDataPath, JSON.stringify(dataToSave, null, 2))
+    console.log("📁 ユーザーデータを保存しました:", Object.keys(usersData).length + "件")
+    return true
+  } catch (error) {
+    console.error("❌ ユーザーデータ保存エラー:", error)
+    return false
+  }
+}
+
+// ユーザーデータを読み込み
+function loadUsersData() {
+  try {
+    if (fs.existsSync(usersDataPath)) {
+      const data = JSON.parse(fs.readFileSync(usersDataPath, "utf8"))
+      const dayInMs = 24 * 60 * 60 * 1000
+      const isExpired = (Date.now() - data.timestamp) > (7 * dayInMs) // 7日で期限切れ
+      
+      if (isExpired) {
+        console.log("⚠️ ユーザーデータが期限切れです (7日経過)")
+        return null
+      }
+      
+      console.log("📁 ユーザーデータを読み込みました:", Object.keys(data.users || {}).length + "件")
+      return data.users || {}
+    }
+  } catch (error) {
+    console.error("❌ ユーザーデータ読み込みエラー:", error)
+  }
+  return null
+}
+
+// カスタム絵文字データを保存
+function saveEmojisData(emojisData) {
+  try {
+    const dataToSave = {
+      emojis: emojisData,
+      timestamp: Date.now(),
+      version: 1
+    }
+    fs.writeFileSync(emojisDataPath, JSON.stringify(dataToSave, null, 2))
+    console.log("📁 カスタム絵文字データを保存しました:", Object.keys(emojisData).length + "個")
+    return true
+  } catch (error) {
+    console.error("❌ カスタム絵文字データ保存エラー:", error)
+    return false
+  }
+}
+
+// カスタム絵文字データを読み込み
+function loadEmojisData() {
+  try {
+    if (fs.existsSync(emojisDataPath)) {
+      const data = JSON.parse(fs.readFileSync(emojisDataPath, "utf8"))
+      const dayInMs = 24 * 60 * 60 * 1000
+      const isExpired = (Date.now() - data.timestamp) > (30 * dayInMs) // 30日で期限切れ
+      
+      if (isExpired) {
+        console.log("⚠️ カスタム絵文字データが期限切れです (30日経過)")
+        return null
+      }
+      
+      console.log("📁 カスタム絵文字データを読み込みました:", Object.keys(data.emojis || {}).length + "個")
+      return data.emojis || {}
+    }
+  } catch (error) {
+    console.error("❌ カスタム絵文字データ読み込みエラー:", error)
   }
   return null
 }
@@ -344,7 +424,7 @@ ipcMain.handle("load-config", () => {
 
 ipcMain.handle("slack-reload-users", async () => {
   try {
-    await slackWatcher.reloadUsers()
+    await slackWatcher.reloadUsers(saveUsersData)
     return { success: true }
   } catch (error) {
     return { success: false, error: error.message }
@@ -354,7 +434,7 @@ ipcMain.handle("slack-reload-users", async () => {
 // カスタム絵文字取得
 ipcMain.handle("slack-get-custom-emojis", async () => {
   try {
-    const customEmojis = await slackWatcher.fetchCustomEmojis()
+    const customEmojis = await slackWatcher.fetchCustomEmojis(true, saveEmojisData)
     return { success: true, emojis: customEmojis }
   } catch (error) {
     return { success: false, error: error.message, emojis: {} }
@@ -365,5 +445,75 @@ ipcMain.handle("slack-get-custom-emojis", async () => {
 ipcMain.on("send-custom-emojis-to-display", (event, customEmojis) => {
   if (mainWindow) {
     mainWindow.webContents.send("custom-emojis-data", customEmojis)
+  }
+})
+
+// ユーザーデータ保存
+ipcMain.handle("save-users-data", (event, usersData) => {
+  try {
+    return { success: saveUsersData(usersData) }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+})
+
+// ユーザーデータ読み込み
+ipcMain.handle("load-users-data", () => {
+  try {
+    const usersData = loadUsersData()
+    return { success: true, data: usersData }
+  } catch (error) {
+    return { success: false, error: error.message, data: null }
+  }
+})
+
+// カスタム絵文字データ保存
+ipcMain.handle("save-emojis-data", (event, emojisData) => {
+  try {
+    return { success: saveEmojisData(emojisData) }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+})
+
+// カスタム絵文字データ読み込み
+ipcMain.handle("load-emojis-data", () => {
+  try {
+    const emojisData = loadEmojisData()
+    return { success: true, data: emojisData }
+  } catch (error) {
+    return { success: false, error: error.message, data: null }
+  }
+})
+
+// SlackWatcherにローカルユーザーデータを設定
+ipcMain.handle("set-local-users-data", () => {
+  try {
+    if (slackWatcher) {
+      const usersData = loadUsersData()
+      if (usersData) {
+        slackWatcher.setLocalUsersData(usersData)
+        return { success: true }
+      }
+    }
+    return { success: false, error: 'ユーザーデータが見つかりません' }
+  } catch (error) {
+    return { success: false, error: error.message }
+  }
+})
+
+// SlackWatcherにローカルカスタム絵文字データを設定
+ipcMain.handle("set-local-emojis-data", () => {
+  try {
+    if (slackWatcher) {
+      const emojisData = loadEmojisData()
+      if (emojisData) {
+        slackWatcher.setLocalEmojisData(emojisData)
+        return { success: true, data: emojisData }
+      }
+    }
+    return { success: false, error: 'カスタム絵文字データが見つかりません' }
+  } catch (error) {
+    return { success: false, error: error.message }
   }
 })

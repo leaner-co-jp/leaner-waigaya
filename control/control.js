@@ -64,7 +64,7 @@ class SlackIntegration {
         // カスタム絵文字をdisplay側に送信
         this.sendCustomEmojisToDisplay(emojiResult.emojis)
         this.updateEmojisStatus(
-          `取得完了 (${Object.keys(emojiResult.emojis).length}個)`,
+          `最新データ取得済み (${Object.keys(emojiResult.emojis).length}個)`,
           "connected"
         )
         console.log(`🎨 カスタム絵文字取得完了: ${Object.keys(emojiResult.emojis).length}個`)
@@ -85,6 +85,29 @@ class SlackIntegration {
         loadBtn.disabled = false
         loadBtn.textContent = "取得"
       }
+    }
+  }
+  
+  // ローカルデータを読み込み
+  async loadLocalData() {
+    try {
+      // ユーザーデータをローカルから読み込み
+      const usersResult = await ipcRenderer.invoke('set-local-users-data')
+      if (usersResult.success) {
+        this.usersLoaded = true
+        console.log('📁 ローカルユーザーデータをSlackWatcherに設定しました')
+      }
+      
+      // カスタム絵文字データをローカルから読み込み
+      const emojisResult = await ipcRenderer.invoke('set-local-emojis-data')
+      if (emojisResult.success && emojisResult.data) {
+        this.emojisLoaded = true
+        // ローカルデータをdisplay側に送信
+        this.sendCustomEmojisToDisplay(emojisResult.data)
+        console.log('📁 ローカルカスタム絵文字データをSlackWatcherに設定しました')
+      }
+    } catch (error) {
+      console.error('ローカルデータ読み込みエラー:', error)
     }
   }
   
@@ -257,18 +280,21 @@ class SlackIntegration {
         this.isConnected = true
         this.updateStatus("接続済み", "connected")
         
+        // ローカルデータを読み込んで初期化
+        await this.loadLocalData()
+        
         // ユーザー一覧の状態を更新
         if (!this.usersLoaded) {
           this.updateUsersStatus("未取得 - リロードしてください", "warning")
         } else {
-          this.updateUsersStatus("取得済み", "connected")
+          this.updateUsersStatus("キャッシュあり", "connected")
         }
         
         // カスタム絵文字の初期状態を設定
         if (!this.emojisLoaded) {
           this.updateEmojisStatus("未取得 - 取得ボタンを押してください", "warning")
         } else {
-          this.updateEmojisStatus("取得済み", "connected")
+          this.updateEmojisStatus("キャッシュあり", "connected")
         }
         
         // チャンネル監視状態を更新
@@ -954,7 +980,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const result = await ipcRenderer.invoke("slack-reload-users")
         if (result.success) {
           slackIntegration.usersLoaded = true
-          slackIntegration.updateUsersStatus("取得済み", "connected")
+          slackIntegration.updateUsersStatus("最新データ取得済み", "connected")
           console.log("ユーザー一覧をリロードしました")
         } else {
           slackIntegration.updateUsersStatus("リロード失敗: " + (result.error || "不明なエラー"), "error")
