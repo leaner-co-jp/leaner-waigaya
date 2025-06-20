@@ -381,6 +381,10 @@ class SlackIntegration {
     const loadBtn = dialogRoot.getElementById
       ? dialogRoot.getElementById("loadChannelsBtn")
       : dialogRoot.querySelector("#loadChannelsBtn")
+    const addBtn = dialogRoot.getElementById
+      ? dialogRoot.getElementById("addChannelBtn")
+      : dialogRoot.querySelector("#addChannelBtn")
+      
     select.innerHTML = ""
     const channelsToShow = filteredChannels || this.availableChannels
     if (channelsToShow.length === 0) {
@@ -389,7 +393,7 @@ class SlackIntegration {
       if (!this.isConnected) {
         option.textContent = "まずSlackに接続してください"
       } else if (this.availableChannels.length === 0) {
-        option.textContent = "チャンネル一覧を取得してください"
+        option.textContent = "先にチャンネル一覧を取得してください"
       } else {
         option.textContent = filteredChannels
           ? "検索結果なし"
@@ -406,12 +410,15 @@ class SlackIntegration {
         select.appendChild(option)
       })
     }
+    
+    // ボタンの有効/無効化
+    const hasChannels = this.isConnected && this.availableChannels.length > 0
     if (select)
-      select.disabled = !this.isConnected || this.availableChannels.length === 0
+      select.disabled = !hasChannels
     if (searchInput)
-      searchInput.disabled =
-        !this.isConnected || this.availableChannels.length === 0
+      searchInput.disabled = !hasChannels
     if (loadBtn) loadBtn.disabled = !this.isConnected
+    if (addBtn) addBtn.disabled = !hasChannels
   }
 
   setupChannelSearch() {
@@ -430,9 +437,18 @@ class SlackIntegration {
     })
   }
 
-  async addChannel() {
-    const select = document.getElementById("channelSelect")
+  async addChannel(dialogRoot = document) {
+    // ダイアログコンテキスト対応の要素取得
+    const select = dialogRoot.querySelector ? dialogRoot.querySelector("#channelSelect") : document.getElementById("channelSelect")
+    
+    if (!select) {
+      console.error("channelSelect要素が見つかりません")
+      alert("チャンネル選択ボックスが見つかりません")
+      return
+    }
+    
     const channelId = select.value
+    console.log("選択されたチャンネルID:", channelId)
 
     if (!channelId) {
       alert("チャンネルを選択してください")
@@ -459,9 +475,14 @@ class SlackIntegration {
     // チャンネル監視状態を更新
     this.updateChannelsStatus(`${this.watchedChannels.length}チャンネル監視中`, "connected")
     
+    console.log(`✅ チャンネル追加完了: #${channelName} (${channelId})`)
+    
     await this.updateUI()
     // チャンネル追加時に設定を保存
     await this.saveConfig()
+    
+    // 選択をクリア
+    select.value = ""
   }
 
   async removeChannel(channelId) {
@@ -557,6 +578,14 @@ class SlackIntegration {
       : dialogRoot.querySelector("#loadEmojisBtn")
     if (loadEmojisBtn) {
       loadEmojisBtn.disabled = !this.isConnected
+    }
+    
+    // チャンネル管理ボタンの状態更新
+    const manageChannelsBtn = dialogRoot.getElementById
+      ? dialogRoot.getElementById("manageChannelsBtn")
+      : dialogRoot.querySelector("#manageChannelsBtn")
+    if (manageChannelsBtn) {
+      manageChannelsBtn.disabled = !this.isConnected
     }
     
     // トークン欄も反映
@@ -1032,16 +1061,17 @@ function scrollToTokenInput() {
   tokenInput.focus()
 }
 
-function showSlackSettings() {
+// Slack接続設定ダイアログを表示
+function showSlackConnection() {
   // 既存ダイアログがあれば削除
-  const oldDialog = document.getElementById("slackSettingsDialog")
+  const oldDialog = document.getElementById("slackConnectionDialog")
   if (oldDialog) oldDialog.remove()
 
   // テンプレートからダイアログ生成
-  const tmpl = document.getElementById("slackSettingsDialogTemplate")
+  const tmpl = document.getElementById("slackConnectionDialogTemplate")
   if (!tmpl) return
   const dialog = document.createElement("div")
-  dialog.id = "slackSettingsDialog"
+  dialog.id = "slackConnectionDialog"
   dialog.style.position = "fixed"
   dialog.style.top = "0"
   dialog.style.left = "0"
@@ -1073,27 +1103,18 @@ function showSlackSettings() {
   const closeBtn = dialog.querySelector(".close-dialog-btn")
   if (closeBtn) closeBtn.onclick = () => dialog.remove()
 
-  // 各種UI要素の初期化・イベントリスナー再設定
+  // UIの初期化
   if (window.slackIntegration) {
-    window.slackIntegration.updateUI(dialog)
-    window.slackIntegration.setupChannelSearch()
+    window.slackIntegration.reflectStateToUI(dialog)
   }
-  // Slack接続・チャンネル追加・クリア等のボタンも再度イベント登録が必要
+  
+  // イベントリスナー設定
   const connectBtn = dialog.querySelector("#connectSlackBtn")
   if (connectBtn)
     connectBtn.onclick = async () => {
       await window.slackIntegration.connect(dialog)
     }
-  const addChannelBtn = dialog.querySelector("#addChannelBtn")
-  if (addChannelBtn)
-    addChannelBtn.onclick = async () => {
-      await window.slackIntegration.addChannel()
-    }
-  const loadChannelsBtn = dialog.querySelector("#loadChannelsBtn")
-  if (loadChannelsBtn)
-    loadChannelsBtn.onclick = async () => {
-      await window.slackIntegration.loadChannels()
-    }
+  
   const clearConfigBtn = dialog.querySelector("#clearConfigBtn")
   if (clearConfigBtn)
     clearConfigBtn.onclick = async () => {
@@ -1110,7 +1131,8 @@ function showSlackSettings() {
             window.slackIntegration.appToken = ""
             window.slackIntegration.watchedChannels = []
             window.slackIntegration.watchedChannelData = {}
-            await window.slackIntegration.updateUI(dialog)
+            await window.slackIntegration.updateUI()
+            window.slackIntegration.reflectStateToUI(dialog)
             alert("設定をクリアしました")
           }
         } catch (error) {
@@ -1121,26 +1143,136 @@ function showSlackSettings() {
     }
 }
 
-window.showSlackSettings = showSlackSettings
+// チャンネル管理ダイアログを表示
+function showChannelManagement() {
+  // Slack接続状態をチェック
+  if (!window.slackIntegration?.isConnected) {
+    alert("先にSlackに接続してください")
+    return
+  }
+
+  // 既存ダイアログがあれば削除
+  const oldDialog = document.getElementById("channelManagementDialog")
+  if (oldDialog) oldDialog.remove()
+
+  // テンプレートからダイアログ生成
+  const tmpl = document.getElementById("channelManagementDialogTemplate")
+  if (!tmpl) return
+  const dialog = document.createElement("div")
+  dialog.id = "channelManagementDialog"
+  dialog.style.position = "fixed"
+  dialog.style.top = "0"
+  dialog.style.left = "0"
+  dialog.style.width = "100vw"
+  dialog.style.height = "100vh"
+  dialog.style.background = "rgba(0,0,0,0.4)"
+  dialog.style.zIndex = "9999"
+  dialog.style.display = "flex"
+  dialog.style.alignItems = "center"
+  dialog.style.justifyContent = "center"
+
+  // テンプレート内容をクローン
+  const inner = tmpl.content.cloneNode(true)
+  // ダイアログ本体にスタイルを追加
+  const innerRoot = inner.querySelector(".slack-dialog-inner")
+  if (innerRoot) {
+    innerRoot.style.background = "#fff"
+    innerRoot.style.borderRadius = "16px"
+    innerRoot.style.boxShadow = "0 4px 32px rgba(0,0,0,0.25)"
+    innerRoot.style.padding = "32px"
+    innerRoot.style.maxWidth = "600px"
+    innerRoot.style.width = "100%"
+    innerRoot.style.boxSizing = "border-box"
+  }
+  dialog.appendChild(inner)
+  document.body.appendChild(dialog)
+
+  // 閉じるボタン
+  const closeBtn = dialog.querySelector(".close-dialog-btn")
+  if (closeBtn) closeBtn.onclick = () => dialog.remove()
+
+  // UIの初期化
+  if (window.slackIntegration) {
+    window.slackIntegration.updateUI(dialog)
+    window.slackIntegration.setupChannelSearch()
+    updateCurrentWatchedChannels(dialog)
+  }
+  
+  // イベントリスナー設定
+  const addChannelBtn = dialog.querySelector("#addChannelBtn")
+  const channelSelect = dialog.querySelector("#channelSelect")
+  
+  if (addChannelBtn) {
+    console.log("チャンネル追加ボタンのイベントリスナーを設定しました")
+    addChannelBtn.onclick = async () => {
+      console.log("チャンネル追加ボタンがクリックされました")
+      await window.slackIntegration.addChannel(dialog)
+      updateCurrentWatchedChannels(dialog)
+    }
+  } else {
+    console.error("チャンネル追加ボタンが見つかりません")
+  }
+  
+  // チャンネル選択時のボタン有効化
+  if (channelSelect && addChannelBtn) {
+    channelSelect.addEventListener('change', () => {
+      const hasSelection = channelSelect.value && channelSelect.value !== ""
+      addChannelBtn.disabled = !hasSelection
+      console.log("チャンネル選択変更:", channelSelect.value, "ボタン有効:", hasSelection)
+    })
+  }
+  
+  const loadChannelsBtn = dialog.querySelector("#loadChannelsBtn")
+  if (loadChannelsBtn)
+    loadChannelsBtn.onclick = async () => {
+      await window.slackIntegration.loadChannels()
+      // チャンネル読み込み後にボタン状態を更新
+      window.slackIntegration.updateChannelSelect(null, dialog)
+    }
+}
+
+// 監視中チャンネルの表示を更新
+function updateCurrentWatchedChannels(dialogRoot = document) {
+  const container = dialogRoot.querySelector("#currentWatchedChannels")
+  if (!container || !window.slackIntegration) return
+  
+  if (window.slackIntegration.watchedChannels.length === 0) {
+    container.innerHTML = '<span class="text-gray-500">監視中のチャンネルはありません</span>'
+  } else {
+    container.innerHTML = window.slackIntegration.watchedChannels
+      .map((id) => {
+        const name =
+          window.slackIntegration.watchedChannelData &&
+          window.slackIntegration.watchedChannelData[id] &&
+          window.slackIntegration.watchedChannelData[id].name
+            ? window.slackIntegration.watchedChannelData[id].name
+            : id
+        return `
+          <div class="flex items-center justify-between mb-2 p-2 bg-green-50 border border-green-200 rounded">
+            <span class="font-medium">#${name}</span>
+            <button 
+              onclick="window.slackIntegration.removeChannel('${id}'); updateCurrentWatchedChannels(document.getElementById('channelManagementDialog'))"
+              class="text-red-500 hover:text-red-700 text-sm px-2 py-1 hover:bg-red-50 rounded"
+              title="監視を停止"
+            >
+              × 削除
+            </button>
+          </div>
+        `
+      })
+      .join("")
+  }
+}
+
+window.showSlackConnection = showSlackConnection
+window.showChannelManagement = showChannelManagement
+window.updateCurrentWatchedChannels = updateCurrentWatchedChannels
 window.toggleDebug = toggleDebug
 window.clearDebugLog = clearDebugLog
 window.toggleSetupGuide = toggleSetupGuide
 window.scrollToTokenInput = scrollToTokenInput
 
-function toggleSlackSettings() {
-  const content = document.getElementById("slackContent")
-  const collapseBtn = document.getElementById("slackCollapseBtn")
-
-  if (content.classList.contains("collapsed")) {
-    content.classList.remove("collapsed")
-    collapseBtn.classList.remove("collapsed")
-    collapseBtn.textContent = "▼"
-  } else {
-    content.classList.add("collapsed")
-    collapseBtn.classList.add("collapsed")
-    collapseBtn.textContent = "▶"
-  }
-}
+// 使用されていない関数を削除しました
 
 // サンプルメッセージを追加する関数
 function addSampleMessage() {

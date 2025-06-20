@@ -52,10 +52,10 @@
           <div class="flex items-center justify-between mb-4">
             <h3 class="font-semibold text-lg">💬 Slack連携</h3>
             <button
-              class="small-btn bg-gray-200 px-3 py-1 rounded text-sm hover:bg-gray-300"
-              onclick="showSlackSettings()"
+              class="small-btn bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+              onclick="showSlackConnection()"
             >
-              ⚙️ 設定
+              🔌 接続設定
             </button>
           </div>
           
@@ -112,28 +112,41 @@
           
           <!-- 監視チャンネル状況 -->
           <div class="status-section mb-4">
-            <div class="flex items-center mb-2">
-              <div class="status-icon" id="channelsStatusIcon">⚪</div>
-              <div class="ml-2">
-                <div class="font-medium">監視チャンネル</div>
-                <div class="text-sm text-gray-600" id="channelsStatus">
-                  <span id="channelCount">0</span>チャンネル監視中
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center">
+                <div class="status-icon" id="channelsStatusIcon">⚪</div>
+                <div class="ml-2">
+                  <div class="font-medium">監視チャンネル</div>
+                  <div class="text-sm text-gray-600" id="channelsStatus">
+                    <span id="channelCount">0</span>チャンネル監視中
+                  </div>
                 </div>
               </div>
+              <button
+                id="manageChannelsBtn"
+                class="bg-green-600 text-white rounded px-3 py-1 text-sm hover:bg-green-700 disabled:opacity-50"
+                onclick="showChannelManagement()"
+                disabled
+              >
+                📺 チャンネル管理
+              </button>
             </div>
             <div id="watchedChannelList" class="mt-2 pl-6"></div>
           </div>
         </div>
       </div>
 
-      <!-- Slack設定ダイアログ用テンプレート（非表示） -->
-      <template id="slackSettingsDialogTemplate">
+      <!-- Slack接続設定ダイアログ用テンプレート（非表示） -->
+      <template id="slackConnectionDialogTemplate">
         <div class="slack-dialog-inner">
-          <button
-            class="close-dialog-btn bg-gray-300 text-gray-800 rounded px-3 py-1 hover:bg-gray-400 mb-4"
-          >
-            閉じる
-          </button>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold">🔌 Slack接続設定</h2>
+            <button
+              class="close-dialog-btn bg-gray-300 text-gray-800 rounded px-3 py-1 hover:bg-gray-400"
+            >
+              閉じる
+            </button>
+          </div>
           <div class="slack-config">
             <div class="mb-4">
               <label for="botToken" class="block mb-1 font-semibold"
@@ -157,54 +170,12 @@
                 class="border rounded px-3 py-2 mb-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <div class="controls mb-4">
+            <div class="controls mb-4 flex gap-2">
               <button
                 id="connectSlackBtn"
-                class="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-800 mr-2 mb-2"
-              >
-                Slack接続
-              </button>
-            </div>
-            <div class="mb-4">
-              <label for="channelSearch" class="block mb-1 font-semibold"
-                >チャンネル検索:</label
-              >
-              <div class="flex gap-2">
-                <input
-                  type="text"
-                  id="channelSearch"
-                  placeholder="チャンネル名で検索..."
-                  class="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled
-                />
-                <button
-                  id="loadChannelsBtn"
-                  disabled
-                  class="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-800"
-                >
-                  チャンネル一覧取得
-                </button>
-              </div>
-            </div>
-            <div class="mb-4">
-              <label for="channelSelect" class="block mb-1 font-semibold"
-                >監視チャンネル:</label
-              >
-              <select
-                id="channelSelect"
-                class="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled
-                size="3"
-              >
-                <option value="">先にSlackに接続してください</option>
-              </select>
-            </div>
-            <div class="controls mb-4 flex flex-wrap gap-2">
-              <button
-                id="addChannelBtn"
                 class="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-800"
               >
-                チャンネル追加
+                Slack接続
               </button>
               <button
                 id="clearConfigBtn"
@@ -238,11 +209,72 @@
                 デバッグ表示切替
               </button>
             </div>
-            <div
-              class="usage-guide"
-              id="usageGuide"
-              style="display: block; margin-top: 24px"
-            ></div>
+          </div>
+        </div>
+      </template>
+
+      <!-- チャンネル管理ダイアログ用テンプレート（非表示） -->
+      <template id="channelManagementDialogTemplate">
+        <div class="slack-dialog-inner">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold">📺 チャンネル管理</h2>
+            <button
+              class="close-dialog-btn bg-gray-300 text-gray-800 rounded px-3 py-1 hover:bg-gray-400"
+            >
+              閉じる
+            </button>
+          </div>
+          <div class="channel-config">
+            <!-- 現在の監視チャンネル -->
+            <div class="mb-4">
+              <h3 class="font-semibold mb-2">監視中のチャンネル</h3>
+              <div id="currentWatchedChannels" class="bg-gray-50 border rounded p-3 min-h-[60px]">
+                <span class="text-gray-500">監視中のチャンネルはありません</span>
+              </div>
+            </div>
+            
+            <!-- チャンネル検索・追加 -->
+            <div class="mb-4">
+              <label for="channelSearch" class="block mb-1 font-semibold"
+                >チャンネル検索:</label
+              >
+              <div class="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  id="channelSearch"
+                  placeholder="チャンネル名で検索..."
+                  class="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled
+                />
+                <button
+                  id="loadChannelsBtn"
+                  disabled
+                  class="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-800 whitespace-nowrap"
+                >
+                  一覧取得
+                </button>
+              </div>
+            </div>
+            <div class="mb-4">
+              <label for="channelSelect" class="block mb-1 font-semibold"
+                >チャンネル選択:</label
+              >
+              <select
+                id="channelSelect"
+                class="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+                disabled
+                size="5"
+              >
+                <option value="">先にチャンネル一覧を取得してください</option>
+              </select>
+              <button
+                id="addChannelBtn"
+                class="bg-green-600 text-white rounded px-4 py-2 hover:bg-green-800 w-full"
+                disabled
+              >
+                選択したチャンネルを監視に追加
+              </button>
+            </div>
           </div>
         </div>
       </template>
