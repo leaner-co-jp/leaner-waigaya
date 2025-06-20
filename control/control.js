@@ -31,12 +31,16 @@ class SlackIntegration {
     }
 
     console.debug = (...args) => {
-      originalDebug ? originalDebug.apply(console, args) : originalLog.apply(console, args)
+      originalDebug
+        ? originalDebug.apply(console, args)
+        : originalLog.apply(console, args)
       this.addDebugLog("[CONTROL] DEBUG", this.formatLogMessage(args))
     }
 
     console.warn = (...args) => {
-      originalWarn ? originalWarn.apply(console, args) : originalLog.apply(console, args)
+      originalWarn
+        ? originalWarn.apply(console, args)
+        : originalLog.apply(console, args)
       this.addDebugLog("[CONTROL] WARN", this.formatLogMessage(args))
     }
 
@@ -45,19 +49,21 @@ class SlackIntegration {
       this.addDebugLog("[CONTROL] ERROR", this.formatLogMessage(args))
     }
   }
-  
+
   // ログメッセージをフォーマットする
   formatLogMessage(args) {
-    return args.map(arg => {
-      if (typeof arg === 'object' && arg !== null) {
-        try {
-          return JSON.stringify(arg, null, 2)
-        } catch (error) {
-          return String(arg)
+    return args
+      .map((arg) => {
+        if (typeof arg === "object" && arg !== null) {
+          try {
+            return JSON.stringify(arg, null, 2)
+          } catch (error) {
+            return String(arg)
+          }
         }
-      }
-      return String(arg)
-    }).join(' ')
+        return String(arg)
+      })
+      .join(" ")
   }
 
   addDebugLog(level, message) {
@@ -65,13 +71,13 @@ class SlackIntegration {
     if (debugLog) {
       const timestamp = new Date().toLocaleTimeString()
       const logEntry = `[${timestamp}] ${level}: ${message}`
-      
+
       // 改行要素を作成して追加
-      const logLine = document.createElement('div')
+      const logLine = document.createElement("div")
       logLine.textContent = logEntry
-      logLine.className = 'debug-log-line'
+      logLine.className = "debug-log-line"
       debugLog.appendChild(logLine)
-      
+
       // 最大行数を制限（1000行で古いログを削除）
       const lines = debugLog.children
       if (lines.length > 1000) {
@@ -80,7 +86,7 @@ class SlackIntegration {
           debugLog.removeChild(lines[0])
         }
       }
-      
+
       // 自動スクロール
       debugLog.scrollTop = debugLog.scrollHeight
     }
@@ -90,17 +96,23 @@ class SlackIntegration {
   setupExternalLogListeners() {
     if (typeof require !== "undefined") {
       const { ipcRenderer } = require("electron")
-      
+
       // main.js からのログを受信
-      ipcRenderer.on('debug-log-from-main', (_, logData) => {
+      ipcRenderer.on("debug-log-from-main", (_, logData) => {
         const formattedMessage = this.formatLogMessage(logData.message)
-        this.addDebugLog(`[${logData.source}] ${logData.level}`, formattedMessage)
+        this.addDebugLog(
+          `[${logData.source}] ${logData.level}`,
+          formattedMessage
+        )
       })
-      
+
       // display.js からのログを受信
-      ipcRenderer.on('debug-log-from-display', (_, logData) => {
+      ipcRenderer.on("debug-log-from-display", (_, logData) => {
         const formattedMessage = this.formatLogMessage(logData.message)
-        this.addDebugLog(`[${logData.source}] ${logData.level}`, formattedMessage)
+        this.addDebugLog(
+          `[${logData.source}] ${logData.level}`,
+          formattedMessage
+        )
       })
     }
   }
@@ -830,11 +842,18 @@ class TextQueue {
     this.queue = []
     this.currentIndex = -1
     this.currentTimer = null
+    // 表示設定のデフォルト値
+    this.DEFAULT_SETTINGS = {
+      fontSize: 20,
+      bgColor: "#000000",
+      bgAlpha: 0.5,
+      fontColor: "#ffffff",
+    }
     // 表示設定の初期値
-    this.fontSize = 26
-    this.bgColor = "#000000"
-    this.bgAlpha = 0.5
-    this.fontColor = "#ffffff"
+    this.fontSize = this.DEFAULT_SETTINGS.fontSize
+    this.bgColor = this.DEFAULT_SETTINGS.bgColor
+    this.bgAlpha = this.DEFAULT_SETTINGS.bgAlpha
+    this.fontColor = this.DEFAULT_SETTINGS.fontColor
     this.loadDisplaySettings()
     this.updateUI()
   }
@@ -873,6 +892,32 @@ class TextQueue {
       fontColor: document.getElementById("fontColor").value,
     }
     localStorage.setItem("waigayaDisplaySettings", JSON.stringify(obj))
+  }
+
+  // 表示設定をデフォルトに戻す
+  resetDisplaySettings() {
+    // 設定値をデフォルトに戻す
+    this.fontSize = this.DEFAULT_SETTINGS.fontSize
+    this.bgColor = this.DEFAULT_SETTINGS.bgColor
+    this.bgAlpha = this.DEFAULT_SETTINGS.bgAlpha
+    this.fontColor = this.DEFAULT_SETTINGS.fontColor
+
+    // UIに反映
+    const fontSizeInput = document.getElementById("fontSize")
+    if (fontSizeInput) fontSizeInput.value = this.fontSize
+    const bgColorInput = document.getElementById("bgColor")
+    if (bgColorInput) bgColorInput.value = this.bgColor
+    const bgAlphaInput = document.getElementById("bgAlpha")
+    if (bgAlphaInput) bgAlphaInput.value = this.bgAlpha
+    const bgAlphaValue = document.getElementById("bgAlphaValue")
+    if (bgAlphaValue) bgAlphaValue.textContent = Number(this.bgAlpha).toFixed(2)
+    const fontColorInput = document.getElementById("fontColor")
+    if (fontColorInput) fontColorInput.value = this.fontColor
+
+    // localStorageに保存
+    this.saveDisplaySettings()
+
+    console.log("表示設定をデフォルトに戻しました")
   }
 
   addSlackMessage(messageData) {
@@ -926,7 +971,6 @@ class TextQueue {
       this.playNext()
     }, 3000) // 固定3秒で次のテキストに進む
   }
-
 
   sendToDisplay(text, metadata = null) {
     try {
@@ -1065,6 +1109,18 @@ document.addEventListener("DOMContentLoaded", () => {
     bgAlphaInput.addEventListener("input", saveSettingsAndUpdateAlpha)
   if (fontColorInput)
     fontColorInput.addEventListener("input", saveSettingsAndUpdateAlpha)
+
+  // デフォルトに戻すボタン
+  const resetDisplaySettingsBtn = document.getElementById(
+    "resetDisplaySettingsBtn"
+  )
+  if (resetDisplaySettingsBtn) {
+    resetDisplaySettingsBtn.onclick = () => {
+      if (window.textQueue) {
+        window.textQueue.resetDisplaySettings()
+      }
+    }
+  }
 
   const reloadUsersBtn = document.getElementById("reloadUsersBtn")
   if (reloadUsersBtn) {
