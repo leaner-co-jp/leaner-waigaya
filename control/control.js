@@ -840,8 +840,6 @@ class TextQueue {
     this.queue = []
     this.currentIndex = -1
     this.currentTimer = null
-    this.displayTime = 3000 // ms
-    this.fadeTime = 500 // ms
     // 表示設定の初期値
     this.fontSize = 26
     this.bgColor = "#000000"
@@ -936,14 +934,11 @@ class TextQueue {
     this.currentTimer = setTimeout(() => {
       this.currentIndex++
       this.playNext()
-    }, this.displayTime + this.fadeTime)
+    }, 3000) // 固定3秒で次のテキストに進む
   }
 
   updateSettings() {
-    const displayTimeInput = document.getElementById("displayTime")
-    const fadeTimeInput = document.getElementById("fadeTime")
-    this.displayTime = parseFloat(displayTimeInput.value) * 1000
-    this.fadeTime = parseFloat(fadeTimeInput.value) * 1000
+    // 表示時間とフェード時間の設定は削除済み
   }
 
   sendToDisplay(text, metadata = null) {

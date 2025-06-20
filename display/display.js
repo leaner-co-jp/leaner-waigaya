@@ -173,28 +173,7 @@ class DisplayManager {
       //   ipcRenderer.send("set-always-on-top", true)
       // }
 
-      // 個別に指定時間後にフェードアウト・削除
-      // const displayTime = 3000 // ms
-      // const fadeTime = 1000 // ms
-      // setTimeout(() => {
-      //   messageItem.classList.add("fade-out")
-      //   setTimeout(() => {
-      //     if (messageItem.parentNode) {
-      //       messageItem.parentNode.removeChild(messageItem)
-      //     }
-      //     // 全て消えたら最前面OFF
-      //     // if (this.textContainer.childElementCount === 0) {
-      //     //   if (typeof require !== "undefined") {
-      //     //     const { ipcRenderer } = require("electron")
-      //     //     ipcRenderer.send("set-always-on-top", false)
-      //     //   }
-      //     // }
-      //     // 高さ再設定
-      //     // setTimeout(() => {
-      //     //   this.updateWindowSize()
-      //     // }, 50)
-      //   }, fadeTime)
-      // }, displayTime)
+      // 表示時間とフェード時間の機能は削除済み
 
       console.log("Slackメッセージ表示完了")
 
