@@ -350,3 +350,20 @@ ipcMain.handle("slack-reload-users", async () => {
     return { success: false, error: error.message }
   }
 })
+
+// カスタム絵文字取得
+ipcMain.handle("slack-get-custom-emojis", async () => {
+  try {
+    const customEmojis = await slackWatcher.fetchCustomEmojis()
+    return { success: true, emojis: customEmojis }
+  } catch (error) {
+    return { success: false, error: error.message, emojis: {} }
+  }
+})
+
+// カスタム絵文字をdisplay側に送信
+ipcMain.on("send-custom-emojis-to-display", (event, customEmojis) => {
+  if (mainWindow) {
+    mainWindow.webContents.send("custom-emojis-data", customEmojis)
+  }
+})

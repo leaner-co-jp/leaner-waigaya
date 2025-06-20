@@ -2,11 +2,95 @@
  * 透過背景テキスト表示機能
  */
 
+// Slack絵文字マッピング
+const SLACK_EMOJI_MAP = {
+  // よく使われる絵文字
+  '+1': '👍',
+  'thumbsup': '👍',
+  '-1': '👎',
+  'thumbsdown': '👎',
+  'heart': '❤️',
+  'hearts': '♥️',
+  'smile': '😊',
+  'smiley': '😃',
+  'grinning': '😀',
+  'laughing': '😆',
+  'joy': '😂',
+  'cry': '😢',
+  'sob': '😭',
+  'rage': '😡',
+  'angry': '😠',
+  'sweat_smile': '😅',
+  'thinking_face': '🤔',
+  'thinking': '🤔',
+  'eyes': '👀',
+  'fire': '🔥',
+  'tada': '🎉',
+  'party': '🎉',
+  'ok_hand': '👌',
+  'clap': '👏',
+  'wave': '👋',
+  'point_right': '👉',
+  'point_left': '👈',
+  'point_up': '👆',
+  'point_down': '👇',
+  'muscle': '💪',
+  'pray': '🙏',
+  'heavy_check_mark': '✅',
+  'x': '❌',
+  'o': '⭕',
+  'warning': '⚠️',
+  'exclamation': '❗',
+  'question': '❓',
+  'bulb': '💡',
+  'star': '⭐',
+  'sparkles': '✨',
+  'rocket': '🚀',
+  'memo': '📝',
+  'pencil': '✏️',
+  'book': '📖',
+  'mag': '🔍',
+  'calendar': '📅',
+  'clock': '🕐',
+  'phone': '📞',
+  'email': '📧',
+  'computer': '💻',
+  'iphone': '📱',
+  'house': '🏠',
+  'car': '🚗',
+  'airplane': '✈️',
+  'coffee': '☕',
+  'beer': '🍺',
+  'pizza': '🍕',
+  'hamburger': '🍔',
+  'apple': '🍎',
+  'banana': '🍌',
+  'dog': '🐶',
+  'cat': '🐱',
+  'sunny': '☀️',
+  'cloud': '☁️',
+  'rain': '🌧️',
+  'snow': '❄️',
+  'rainbow': '🌈',
+  // 追加の絵文字
+  'white_check_mark': '✅',
+  'red_circle': '🔴',
+  'large_blue_circle': '🔵',
+  'green_circle': '🟢',
+  'yellow_circle': '🟡',
+  'orange_circle': '🟠',
+  'purple_circle': '🟣',
+  'brown_circle': '🟤',
+  'black_circle': '⚫',
+  'white_circle': '⚪'
+}
+
 class DisplayManager {
   constructor() {
     this.textContainer = document.getElementById("text-container")
     this.displayedTexts = []
     this.textIdCounter = 0
+    this.customEmojis = {} // カスタム絵文字キャッシュ
     // this.maxTexts = 10 // 最大表示数
 
     this.initializeIPC()
@@ -197,7 +281,14 @@ class DisplayManager {
     // メッセージテキスト
     const textDiv = document.createElement("div")
     textDiv.className = "leading-snug drop-shadow-[2px_2px_4px_rgba(0,0,0,0.8)]"
-    textDiv.textContent = safeData.text
+    
+    // カスタム絵文字が含まれている場合はinnerHTMLを使用
+    if (safeData.text.includes('<img') && safeData.text.includes('custom-emoji')) {
+      textDiv.innerHTML = safeData.text
+    } else {
+      textDiv.textContent = safeData.text
+    }
+    
     // 設定反映
     if (settings) {
       textDiv.style.fontSize = settings.fontSize + "px"
@@ -211,14 +302,48 @@ class DisplayManager {
   }
 
   /**
+   * Slack絵文字を実際の絵文字に変換
+   * @param {string} text - 変換対象のテキスト
+   * @returns {string} 絵文字変換済みのテキスト
+   */
+  convertSlackEmojis(text) {
+    if (!text) return text
+    
+    // :emoji_name: 形式の絵文字を検索・変換
+    return text.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
+      // まず標準絵文字マップをチェック
+      let emoji = SLACK_EMOJI_MAP[emojiName]
+      
+      // 標準絵文字にない場合はカスタム絵文字をチェック
+      if (!emoji && this.customEmojis[emojiName]) {
+        const customEmojiUrl = this.customEmojis[emojiName]
+        // カスタム絵文字はイメージタグで表示
+        emoji = `<img src="${customEmojiUrl}" alt=":${emojiName}:" class="custom-emoji" style="width: 1.2em; height: 1.2em; vertical-align: middle; display: inline-block;" />`
+      }
+      
+      return emoji || match // 見つからない場合は元のまま
+    })
+  }
+  
+  /**
+   * カスタム絵文字を更新
+   * @param {Object} customEmojis - カスタム絵文字マップ
+   */
+  updateCustomEmojis(customEmojis) {
+    this.customEmojis = customEmojis || {}
+    console.log(`🎨 カスタム絵文字を更新: ${Object.keys(this.customEmojis).length}個`)
+  }
+
+  /**
    * Slackデータをサニタイズ
    * @param {string} text - テキスト
    * @param {Object} metadata - メタデータ
    * @returns {Object} サニタイズされたデータ
    */
   sanitizeSlackData(text, metadata) {
+    const cleanText = text ? String(text).trim() : ""
     return {
-      text: text ? String(text).trim() : "",
+      text: this.convertSlackEmojis(cleanText), // 絵文字変換を適用
       user: metadata?.user ? String(metadata.user).trim() : "Unknown",
       userIcon:
         metadata?.userIcon ||
@@ -310,14 +435,19 @@ class DisplayManager {
       const { ipcRenderer } = require("electron")
 
       // Slackメッセージデータを受信
-      ipcRenderer.on("display-slack-message-data", (event, data) => {
+      ipcRenderer.on("display-slack-message-data", (_, data) => {
         const { text, metadata } = data
         this.displaySlackMessage(text, metadata)
       })
 
       // 通常テキストデータを受信
-      ipcRenderer.on("display-text-data", (event, text) => {
+      ipcRenderer.on("display-text-data", (_, text) => {
         this.updateDisplayText(text)
+      })
+      
+      // カスタム絵文字データを受信
+      ipcRenderer.on("custom-emojis-data", (_, customEmojis) => {
+        this.updateCustomEmojis(customEmojis)
       })
     }
   }
@@ -367,6 +497,7 @@ class DisplayManager {
 }
 
 // 初期化
+let displayManager
 document.addEventListener("DOMContentLoaded", () => {
   displayManager = new DisplayManager()
 })

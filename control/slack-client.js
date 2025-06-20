@@ -14,6 +14,7 @@ class SlackWatcher {
       channels: [],
     }
     this.userCache = {}
+    this.customEmojiCache = {} // カスタム絵文字キャッシュ
   }
 
   // 設定を更新
@@ -510,6 +511,31 @@ class SlackWatcher {
   // ユーザー一覧を明示的にリロード
   async reloadUsers() {
     await this.fetchAllUsers()
+  }
+
+  // カスタム絵文字一覧を取得
+  async fetchCustomEmojis() {
+    try {
+      console.log("🎨 カスタム絵文字取得開始...")
+      const result = await this.webClient.emoji.list()
+      
+      if (result.emoji) {
+        this.customEmojiCache = result.emoji
+        console.log(`✅ カスタム絵文字を取得: ${Object.keys(result.emoji).length}個`)
+        return result.emoji
+      } else {
+        console.warn("⚠️ カスタム絵文字が取得できませんでした")
+        return {}
+      }
+    } catch (error) {
+      console.error("❌ カスタム絵文字取得エラー:", error)
+      return {}
+    }
+  }
+
+  // カスタム絵文字キャッシュを取得
+  getCustomEmojis() {
+    return this.customEmojiCache
   }
 }
 
