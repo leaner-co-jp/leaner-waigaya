@@ -51,22 +51,26 @@
         <div class="slack-card bg-white p-5 rounded-xl shadow-md mb-5">
           <div class="flex items-center justify-between mb-4">
             <h3 class="font-semibold text-lg">💬 Slack連携</h3>
-            <button
-              class="small-btn bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-              onclick="showSlackConnection()"
-            >
-              🔌 接続設定
-            </button>
           </div>
 
           <!-- Slack接続状況 -->
           <div class="status-section mb-4">
-            <div class="flex items-center mb-2">
-              <div class="status-icon" id="slackConnectionIcon">🔴</div>
-              <div class="ml-2">
-                <div class="font-medium">接続状況</div>
-                <div class="text-sm text-gray-600" id="slackStatus">未接続</div>
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center">
+                <div class="status-icon" id="slackConnectionIcon">🔴</div>
+                <div class="ml-2">
+                  <div class="font-medium">接続状況</div>
+                  <div class="text-sm text-gray-600" id="slackStatus">
+                    未接続
+                  </div>
+                </div>
               </div>
+              <button
+                class="small-btn bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                onclick="showSlackConnection()"
+              >
+                🔌 接続設定
+              </button>
             </div>
           </div>
 
@@ -274,7 +278,6 @@
         </div>
 
         <div class="settings flex gap-5 items-center mb-5">
-
           <div class="flex flex-col">
             <label for="fontSize" class="font-bold text-sm">文字サイズ:</label>
             <div class="flex items-center">
