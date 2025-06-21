@@ -4,6 +4,14 @@ const { FuseV1Options, FuseVersion } = require("@electron/fuses")
 module.exports = {
   packagerConfig: {
     asar: true,
+    name: "Leaner Waigaya",
+    executableName: "leaner-waigaya",
+    appBundleId: "jp.co.leaner.waigaya",
+    appCategoryType: "public.app-category.utilities",
+    icon: "./assets/icon.ico",
+    author: "Yusuke Kokubo",
+    homepage: "https://github.com/leaner-co-jp/leaner-waigaya",
+    description: "Slack Message Display App",
   },
   rebuildConfig: {},
   makers: [

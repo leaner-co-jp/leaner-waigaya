@@ -1,8 +1,8 @@
 {
-  "name": "electron-vite-react-app",
-  "productName": "electron-vite-react-app",
+  "name": "leaner-waigaya",
+  "productName": "Leaners Waigaya",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "Slack Message Display App",
   "main": ".vite/build/main.js",
   "scripts": {
     "package": "electron-forge package",
