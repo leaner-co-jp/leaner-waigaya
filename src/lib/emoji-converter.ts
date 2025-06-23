@@ -71,7 +71,7 @@ const SLACK_EMOJI_MAP: EmojiMap = {
   'no_mouth': '😶',
   'innocent': '😇',
   'alien': '👽',
-  
+
   // ジェスチャー・アクション
   '+1': '👍',
   'thumbsup': '👍',
@@ -93,7 +93,7 @@ const SLACK_EMOJI_MAP: EmojiMap = {
   'pray': '🙏',
   'clap': '👏',
   'muscle': '💪',
-  
+
   // 心とシンボル
   'heart': '❤️',
   'broken_heart': '💔',
@@ -173,7 +173,8 @@ export class EmojiConverter {
     if (!text) return text;
 
     // :emoji_name: 形式の絵文字を検索・変換
-    return text.replace(/:([a-zA-Z0-9_+-]+):/g, (match, emojiName) => {
+    // 日本語などのマルチバイト文字に対応
+    return text.replace(/:([^:\s]+):/g, (match, emojiName) => {
       // まず標準絵文字マップをチェック
       let emoji = this.standardEmojis[emojiName];
 
