@@ -27,6 +27,7 @@ jobs:
       - name: Get package version
         id: get_version
         run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Build Application
         run: npm run make
@@ -34,5 +35,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: leaner-waigaya-v${{ steps.get_version.outputs.VERSION }}-${{ matrix.os }}
+          name: leaner-waigaya-v${{ steps.get_version.outputs.VERSION }}-${{ replace(matrix.os, '-latest', '') }}
           path: out/make
