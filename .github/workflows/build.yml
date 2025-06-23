@@ -8,9 +8,9 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos, windows]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -35,5 +35,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: leaner-waigaya-v${{ steps.get_version.outputs.VERSION }}-${{ replace(matrix.os, '-latest', '') }}
+          name: leaner-waigaya-v${{ steps.get_version.outputs.VERSION }}-${{ matrix.os }}
           path: out/make
