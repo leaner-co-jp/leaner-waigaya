@@ -46,6 +46,7 @@ export interface ChannelListResult {
 export interface ChannelActionResult {
   success: boolean;
   error?: string;
+  message?: string;
 }
 
 export interface CustomEmoji {
@@ -69,8 +70,8 @@ export interface ElectronAPI {
 
   // メッセージング
   displaySlackMessage: (message: SlackMessage) => void;
-  onDisplaySlackMessage: (callback: (message: SlackMessage) => void) => void;
-  onAddToTextQueue: (callback: (message: SlackMessage) => void) => void;
+  onDisplaySlackMessage: (callback: (message: SlackMessage) => void) => () => void;
+  onAddToTextQueue: (callback: (message: SlackMessage) => void) => () => void;
   removeAllListeners: (channel: string) => void;
 
   // チャンネル管理
@@ -79,6 +80,8 @@ export interface ElectronAPI {
   removeWatchChannel: (channelId: string) => Promise<ChannelActionResult>;
   getChannelInfo: (channelId: string) => Promise<SlackChannel>;
   getWatchedChannels: () => Promise<{ ids: string[], data: { [key: string]: SlackChannel } }>;
+  getCurrentChannelName: () => Promise<string>;
+  onChannelUpdated: (callback: (channelName: string) => void) => () => void;
 
   // ユーザー管理
   slackReloadUsers: () => Promise<{ success: boolean, count?: number, error?: string }>;

@@ -24,8 +24,11 @@ const electronAPI = {
     ipcRenderer.on('display-slack-message-data', handler);
     return () => ipcRenderer.removeListener('display-slack-message-data', handler);
   },
-  onAddToTextQueue: (callback: (message: SlackMessage) => void) =>
-    ipcRenderer.on('add-to-text-queue', (_, message) => callback(message)),
+  onAddToTextQueue: (callback: (message: SlackMessage) => void): (() => void) => {
+    const handler = (_: any, message: SlackMessage) => callback(message);
+    ipcRenderer.on('add-to-text-queue', handler);
+    return () => ipcRenderer.removeListener('add-to-text-queue', handler);
+  },
   removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel),
 
   // チャンネル管理
@@ -35,6 +38,12 @@ const electronAPI = {
   getChannelInfo: (channelId: string) =>
     ipcRenderer.invoke('slack-get-channel-info', channelId),
   getWatchedChannels: () => ipcRenderer.invoke("slack-get-watched-channels"),
+  getCurrentChannelName: () => ipcRenderer.invoke('get-current-channel-name'),
+  onChannelUpdated: (callback: (channelName: string) => void): (() => void) => {
+    const handler = (_: any, channelName: string) => callback(channelName);
+    ipcRenderer.on('channel-updated', handler);
+    return () => ipcRenderer.removeListener('channel-updated', handler);
+  },
 
   // ユーザー管理
   slackReloadUsers: () => ipcRenderer.invoke("slack-reload-users"),

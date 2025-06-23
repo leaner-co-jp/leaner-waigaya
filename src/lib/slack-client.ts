@@ -15,6 +15,8 @@ export class SlackWatcher {
   private messageCallback: ((message: any) => void) | null = null;
   // 設定保存コールバック
   private configSaveCallback: ((config: SlackConfig) => void) | null = null;
+  // チャンネル更新コールバック
+  private channelUpdateCallback: ((channels: string[]) => void) | null = null;
   // 重複メッセージ防止用（最近処理したメッセージのタイムスタンプを保持）
   // private recentMessageTimestamps: Set<string> = new Set();
 
@@ -29,6 +31,9 @@ export class SlackWatcher {
     if (config.channels && config.channels.length > 0) {
       console.log("🔄 監視チャンネルを復元:", config.channels);
       this.watchedChannels = new Set(config.channels);
+      if (this.channelUpdateCallback) {
+        this.channelUpdateCallback(Array.from(this.watchedChannels));
+      }
     }
   }
 
@@ -360,14 +365,13 @@ export class SlackWatcher {
   // 監視するチャンネルを追加
   async addWatchChannel(channelId: string): Promise<ChannelActionResult> {
     try {
-      console.log("🔍 チャンネル監視追加:", {
-        channelId,
-        現在の監視チャンネル: Array.from(this.watchedChannels),
-      });
-
-      // チャンネル情報を取得してボットが参加しているかチェック
+      if (this.watchedChannels.has(channelId)) {
+        return { success: false, error: "指定されたチャンネルは既に監視されています" };
+      }
       const channelInfo = await this.getChannelInfo(channelId);
-      console.log("📋 監視対象チャンネル情報:", channelInfo);
+      if (!channelInfo) {
+        return { success: false, error: "チャンネル情報の取得に失敗しました" };
+      }
 
       if (!channelInfo.is_member) {
         return {
@@ -385,7 +389,14 @@ export class SlackWatcher {
       // 設定を自動保存
       await this.saveChannelSettings();
 
-      return { success: true };
+      if (this.channelUpdateCallback) {
+        this.channelUpdateCallback(Array.from(this.watchedChannels));
+      }
+
+      return {
+        success: true,
+        message: `#${channelInfo.name} を監視対象に追加しました`,
+      };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("❌ チャンネル監視追加エラー:", error);
@@ -398,25 +409,20 @@ export class SlackWatcher {
 
   // 監視チャンネルを削除
   async removeWatchChannel(channelId: string): Promise<ChannelActionResult> {
-    try {
-      this.watchedChannels.delete(channelId);
-      console.log("✅ チャンネル監視削除完了:", {
-        channelId,
-        現在の監視チャンネル: Array.from(this.watchedChannels),
-      });
-
-      // 設定を自動保存
-      await this.saveChannelSettings();
-
-      return { success: true };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("❌ チャンネル監視削除エラー:", error);
-      return {
-        success: false,
-        error: `チャンネル監視削除エラー: ${errorMessage}`,
-      };
+    if (!this.watchedChannels.has(channelId)) {
+      return { success: false, error: "指定されたチャンネルは監視されていません" };
     }
+
+    this.watchedChannels.delete(channelId);
+
+    // チャンネル情報を保存
+    await this.saveChannelSettings();
+
+    if (this.channelUpdateCallback) {
+      this.channelUpdateCallback(Array.from(this.watchedChannels));
+    }
+
+    return { success: true, message: "監視を解除しました" };
   }
 
   // 監視中のチャンネル一覧を取得
@@ -492,7 +498,7 @@ export class SlackWatcher {
 
       // ユーザー情報を取得
       const userInfo = await this.getUserInfo(slackMessage.user);
-      console.log("👤 ユーザー情報取得結果:", userInfo);
+      console.log("🌐 ユーザー情報取得結果:", userInfo);
 
       // SlackMessage型に変換
       const displayMessage = {
@@ -596,6 +602,10 @@ export class SlackWatcher {
 
   setConfigSaveCallback(callback: (config: SlackConfig) => void): void {
     this.configSaveCallback = callback;
+  }
+
+  setChannelUpdateCallback(callback: (channels: string[]) => void): void {
+    this.channelUpdateCallback = callback;
   }
 
   // カスタム絵文字一覧を取得

@@ -10,9 +10,13 @@ interface DisplayMessage extends SlackMessage {
 
 export const DisplayWindow: React.FC = () => {
   const [messages, setMessages] = useState<DisplayMessage[]>([])
+  const [channelName, setChannelName] = useState("waigaya")
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.electronAPI) return
+
+    // 初期チャンネル名を取得
+    window.electronAPI.getCurrentChannelName().then(setChannelName)
 
     const handleMessage = (message: SlackMessage) => {
       const displayMessage: DisplayMessage = {
@@ -37,17 +41,24 @@ export const DisplayWindow: React.FC = () => {
       }
     )
 
+    const cleanupChannelListener = window.electronAPI.onChannelUpdated(
+      (name) => {
+        setChannelName(name)
+      }
+    )
+
     return () => {
       cleanupMessageListener()
       cleanupEmojiListener()
       cleanupSettingsListener()
+      cleanupChannelListener()
     }
   }, [])
 
   return (
     <div className="m-0 p-0 bg-transparent h-screen border rounded-2xl border-gray-500 text-black overflow-hidden">
-      <div className="w-full bg-white/10 text-white px-2 py-1 text-xs">
-        waigaya
+      <div className="w-full bg-black text-white px-2 py-1 text-xs">
+        #{channelName}
       </div>
       <div className="flex flex-col gap-2 m-2 overflow-hidden">
         <AnimatePresence>

@@ -21,6 +21,7 @@ let slackWatcher: SlackWatcher;
 // Windows
 let mainWindow: BrowserWindow | null = null; // コントロールウィンドウ
 let displayWindow: BrowserWindow | null = null; // 透過表示ウィンドウ
+let currentChannelName = "waigaya"; // 表示用のチャンネル名
 
 // 設定ファイルのパス
 const configPath = path.join(app.getPath("userData"), "slack-config.json");
@@ -193,6 +194,21 @@ app.whenReady().then(() => {
     }
   });
 
+  // チャンネル更新時のコールバック
+  slackWatcher.setChannelUpdateCallback(async (channels) => {
+    if (channels.length > 0) {
+      // 最初のチャンネル情報を取得して更新
+      const info = await slackWatcher.getChannelInfo(channels[0]);
+      currentChannelName = info.name || "waigaya";
+    } else {
+      currentChannelName = "waigaya";
+    }
+    // 表示ウィンドウに通知
+    if (displayWindow && !displayWindow.isDestroyed()) {
+      displayWindow.webContents.send('channel-updated', currentChannelName);
+    }
+  });
+
   // 設定保存時のコールバック設定
   slackWatcher.setConfigSaveCallback((config: SlackConfig) => {
     console.log("💾 メインプロセス: 設定保存要求受信");
@@ -236,6 +252,11 @@ app.on('window-all-closed', () => {
 });
 
 // IPC Handlers for Slack integration
+
+// 表示ウィンドウに現在のチャンネル名を返す
+ipcMain.handle('get-current-channel-name', () => {
+  return currentChannelName;
+});
 
 // Slack接続
 ipcMain.handle("slack-connect", async (_, config: SlackConfig) => {
