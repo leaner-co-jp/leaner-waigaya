@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main windows",
+  "windows": ["control", "display"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "core:window:default",
+    "core:window:allow-get-all-windows",
+    "core:window:allow-start-dragging",
+    "opener:default",
+    "process:allow-restart",
+    "updater:default"
+  ]
+}

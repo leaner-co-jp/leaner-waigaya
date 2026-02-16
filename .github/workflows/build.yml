@@ -2,15 +2,23 @@ name: Build & Release
 
 on:
   push:
-    branches: ["main"]
+    tags:
+      - "v*"
 
 jobs:
   build:
+    permissions:
+      contents: write
+
     strategy:
       matrix:
-        os: [macos, windows]
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
 
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -21,19 +29,30 @@ jobs:
           node-version: 20
           cache: "npm"
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
       - name: Install Dependencies
         run: npm ci
 
-      - name: Get package version
-        id: get_version
-        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Build Application
-        run: npm run make
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          name: leaner-waigaya-v${{ steps.get_version.outputs.VERSION }}-${{ matrix.os }}
-          path: out/make
+          tagName: v__VERSION__
+          releaseName: "Leaner Waigaya v__VERSION__"
+          releaseBody: ""
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --target ${{ matrix.target }}

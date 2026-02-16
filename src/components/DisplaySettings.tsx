@@ -1,30 +1,28 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect } from 'react';
 
 export interface DisplaySettings {
-  fontSize: number // フォントサイズ（現行：20px）
-  textColor: string // テキスト色（現行：#ffffff）
-  backgroundColor: string // 背景色（現行：#000000）
-  opacity: number // 透明度（現行：0.5、範囲0.0-1.0）
-  fadeTime: number // フェード時間（1-10秒）
-  borderRadius: number // 角丸半径（0-20px）
-  displayDurationSec: number // 表示期間（1-60秒）
+  fontSize: number;        // フォントサイズ（現行：20px）
+  textColor: string;       // テキスト色（現行：#ffffff）
+  backgroundColor: string; // 背景色（現行：#000000）
+  opacity: number;         // 透明度（現行：0.5、範囲0.0-1.0）
+  fadeTime: number;        // フェード時間（1-10秒）
+  borderRadius: number;    // 角丸半径（0-20px）
 }
 
 // 現行システムのデフォルト値に合わせて調整
 const DEFAULT_SETTINGS: DisplaySettings = {
-  fontSize: 20, // 現行システムのデフォルト値
-  textColor: "#ffffff", // 現行システムのデフォルト値
-  backgroundColor: "#000000", // 現行システムのデフォルト値
-  opacity: 0.5, // 現行システムのデフォルト値
+  fontSize: 20,           // 現行システムのデフォルト値
+  textColor: '#ffffff',   // 現行システムのデフォルト値
+  backgroundColor: '#000000', // 現行システムのデフォルト値
+  opacity: 0.5,          // 現行システムのデフォルト値
   fadeTime: 3,
   borderRadius: 8,
-  displayDurationSec: 5,
-}
+};
 
 interface DisplaySettingsProps {
-  isOpen: boolean
-  onClose: () => void
-  onSettingsChange: (settings: DisplaySettings) => void
+  isOpen: boolean;
+  onClose: () => void;
+  onSettingsChange: (settings: DisplaySettings) => void;
 }
 
 export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
@@ -32,55 +30,46 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
   onClose,
   onSettingsChange,
 }) => {
-  const [settings, setSettings] = useState<DisplaySettings>(DEFAULT_SETTINGS)
+  const [settings, setSettings] = useState<DisplaySettings>(DEFAULT_SETTINGS);
 
   // localStorage から設定を読み込み
   useEffect(() => {
-    const savedSettings = localStorage.getItem("waigayaDisplaySettings")
+    const savedSettings = localStorage.getItem('waigayaDisplaySettings');
     if (savedSettings) {
       try {
-        const parsed = JSON.parse(savedSettings)
-        setSettings({ ...DEFAULT_SETTINGS, ...parsed })
+        const parsed = JSON.parse(savedSettings);
+        setSettings({ ...DEFAULT_SETTINGS, ...parsed });
       } catch (error) {
-        console.error("表示設定の読み込みエラー:", error)
+        console.error('表示設定の読み込みエラー:', error);
       }
     }
-  }, [])
+  }, []);
 
   // 設定が変更されたときの処理（現行システムのリアルタイム反映と同等）
-  const handleSettingChange = (
-    key: keyof DisplaySettings,
-    value: number | string
-  ) => {
-    const newSettings = { ...settings, [key]: value }
-    setSettings(newSettings)
-
+  const handleSettingChange = (key: keyof DisplaySettings, value: number | string) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    
     // localStorage に保存（現行システムと同じキー）
-    localStorage.setItem("waigayaDisplaySettings", JSON.stringify(newSettings))
-
+    localStorage.setItem('waigayaDisplaySettings', JSON.stringify(newSettings));
+    
     // 親コンポーネントに通知
-    onSettingsChange(newSettings)
-
+    onSettingsChange(newSettings);
+    
     // DisplayWindowにリアルタイム反映（現行システムと同じ動作）
-    if (
-      typeof window !== "undefined" &&
-      window.electronAPI?.displaySettingsUpdate
-    ) {
-      window.electronAPI.displaySettingsUpdate(newSettings)
+    if (typeof window !== 'undefined' && window.electronAPI?.displaySettingsUpdate) {
+      window.electronAPI.displaySettingsUpdate(newSettings);
     }
-  }
+  };
 
   // デフォルト設定にリセット
   const resetToDefaults = () => {
-    setSettings(DEFAULT_SETTINGS)
-    localStorage.setItem(
-      "waigayaDisplaySettings",
-      JSON.stringify(DEFAULT_SETTINGS)
-    )
-    onSettingsChange(DEFAULT_SETTINGS)
-  }
+    setSettings(DEFAULT_SETTINGS);
+    localStorage.setItem('waigayaDisplaySettings', JSON.stringify(DEFAULT_SETTINGS));
+    onSettingsChange(DEFAULT_SETTINGS);
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -96,29 +85,6 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
         </div>
 
         <div className="space-y-4">
-          {/* 表示期間 */}
-          <div>
-            <label className="block mb-1 font-semibold">
-              表示期間: {settings.displayDurationSec}秒
-            </label>
-            <input
-              type="range"
-              min={1}
-              max={60}
-              value={settings.displayDurationSec}
-              onChange={(e) =>
-                handleSettingChange(
-                  "displayDurationSec",
-                  parseInt(e.target.value)
-                )
-              }
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>1秒</span>
-              <span>60秒</span>
-            </div>
-          </div>
           {/* フォントサイズ */}
           <div>
             <label className="block mb-1 font-semibold">
@@ -129,9 +95,7 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
               min={12}
               max={48}
               value={settings.fontSize}
-              onChange={(e) =>
-                handleSettingChange("fontSize", parseInt(e.target.value))
-              }
+              onChange={(e) => handleSettingChange('fontSize', parseInt(e.target.value))}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-gray-500">
@@ -147,17 +111,13 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
               <input
                 type="color"
                 value={settings.textColor}
-                onChange={(e) =>
-                  handleSettingChange("textColor", e.target.value)
-                }
+                onChange={(e) => handleSettingChange('textColor', e.target.value)}
                 className="w-12 h-8 border rounded"
               />
               <input
                 type="text"
                 value={settings.textColor}
-                onChange={(e) =>
-                  handleSettingChange("textColor", e.target.value)
-                }
+                onChange={(e) => handleSettingChange('textColor', e.target.value)}
                 className="border rounded px-2 py-1 font-mono text-sm flex-1"
                 placeholder="#000000"
               />
@@ -171,17 +131,13 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
               <input
                 type="color"
                 value={settings.backgroundColor}
-                onChange={(e) =>
-                  handleSettingChange("backgroundColor", e.target.value)
-                }
+                onChange={(e) => handleSettingChange('backgroundColor', e.target.value)}
                 className="w-12 h-8 border rounded"
               />
               <input
                 type="text"
                 value={settings.backgroundColor}
-                onChange={(e) =>
-                  handleSettingChange("backgroundColor", e.target.value)
-                }
+                onChange={(e) => handleSettingChange('backgroundColor', e.target.value)}
                 className="border rounded px-2 py-1 font-mono text-sm flex-1"
                 placeholder="#ffffff"
               />
@@ -199,9 +155,7 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
               max={1.0}
               step={0.1}
               value={settings.opacity}
-              onChange={(e) =>
-                handleSettingChange("opacity", parseFloat(e.target.value))
-              }
+              onChange={(e) => handleSettingChange('opacity', parseFloat(e.target.value))}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-gray-500">
@@ -220,9 +174,7 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
               min={1}
               max={10}
               value={settings.fadeTime}
-              onChange={(e) =>
-                handleSettingChange("fadeTime", parseInt(e.target.value))
-              }
+              onChange={(e) => handleSettingChange('fadeTime', parseInt(e.target.value))}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-gray-500">
@@ -241,9 +193,7 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
               min={0}
               max={20}
               value={settings.borderRadius}
-              onChange={(e) =>
-                handleSettingChange("borderRadius", parseInt(e.target.value))
-              }
+              onChange={(e) => handleSettingChange('borderRadius', parseInt(e.target.value))}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-gray-500">
@@ -263,8 +213,8 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
               backgroundColor: settings.backgroundColor,
               opacity: settings.opacity,
               borderRadius: `${settings.borderRadius}px`,
-              padding: "8px 12px",
-              display: "inline-block",
+              padding: '8px 12px',
+              display: 'inline-block',
             }}
           >
             サンプルメッセージ
@@ -288,18 +238,18 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 // デフォルト設定を取得するヘルパー関数
 export const getDisplaySettings = (): DisplaySettings => {
-  const savedSettings = localStorage.getItem("waigayaDisplaySettings")
+  const savedSettings = localStorage.getItem('waigayaDisplaySettings');
   if (savedSettings) {
     try {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) }
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) };
     } catch (error) {
-      console.error("表示設定の読み込みエラー:", error)
+      console.error('表示設定の読み込みエラー:', error);
     }
   }
-  return DEFAULT_SETTINGS
-}
+  return DEFAULT_SETTINGS;
+};

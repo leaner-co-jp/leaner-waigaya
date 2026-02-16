@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "Leaner Waigaya",
+  "version": "1.0.0",
+  "identifier": "jp.co.leaner.waigaya",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "control",
+        "title": "Waigaya - コントロール",
+        "url": "/control.html",
+        "width": 800,
+        "height": 1200,
+        "resizable": true,
+        "fullscreen": false
+      },
+      {
+        "label": "display",
+        "title": "Waigaya - 表示",
+        "url": "/display.html",
+        "width": 500,
+        "height": 600,
+        "x": 0,
+        "y": 0,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": "v2Compatible"
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM3OTQzMkNERDAzMUY4RDcKUldUWCtESFF6VEtVTnhIOEV2Wng3Z2ZnN25DYWxTN2dvTDRWSWhQazl5TkxaRnE5bFdpNnZyczMK",
+      "endpoints": [
+        "https://github.com/leaner-co-jp/leaner-waigaya/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

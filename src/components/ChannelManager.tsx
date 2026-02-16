@@ -59,31 +59,32 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
   const addChannel = async () => {
     if (!selectedChannel) return
 
+    console.log("➕ チャンネル追加リクエスト:", selectedChannel)
     try {
       const result = await window.electronAPI.addWatchChannel(selectedChannel)
+      console.log("➕ チャンネル追加結果:", result)
       if (result.success) {
         await loadWatchedChannels() // 監視リストを更新
         setSelectedChannel("")
-        alert("チャンネルを監視に追加しました")
       } else {
         alert(`チャンネル追加エラー: ${result.error}`)
       }
     } catch (error) {
       console.error("チャンネル追加エラー:", error)
-      alert("チャンネル追加中にエラーが発生しました")
+      alert(`チャンネル追加中にエラーが発生しました: ${error}`)
     }
   }
 
   // チャンネルを監視から削除
   const removeChannel = async (channelId: string) => {
-    if (!confirm("このチャンネルの監視を停止しますか？")) return
-
+    console.log("🗑️ チャンネル削除リクエスト:", channelId)
     try {
       const result = await window.electronAPI.removeWatchChannel(channelId)
+      console.log("🗑️ チャンネル削除結果:", result)
       if (result.success) {
         await loadWatchedChannels() // 監視リストを更新
-        alert("チャンネルの監視を停止しました")
       } else {
+        console.error("チャンネル削除エラー:", result.error)
         alert(`チャンネル削除エラー: ${result.error}`)
       }
     } catch (error) {

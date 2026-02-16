@@ -7,6 +7,8 @@ export interface QueueItem {
   userIcon?: string;
   timestamp: string;
   type: 'slack' | 'text';
+  replyToUser?: string;
+  replyToText?: string;
 }
 
 export interface DisplaySettings {
@@ -100,7 +102,9 @@ export class TextQueue {
         user: messageData.user,
         userIcon: messageData.userIcon,
         timestamp: new Date().toLocaleTimeString(),
-        type: 'slack'
+        type: 'slack',
+        replyToUser: messageData.replyToUser,
+        replyToText: messageData.replyToText,
       };
 
       // キューサイズ制限（TypeScript版で追加）
@@ -208,7 +212,9 @@ export class TextQueue {
         user: currentItem.user || 'unknown',
         userIcon: currentItem.userIcon || '',
         text: currentItem.text,
-        type: 'slack'
+        type: 'slack',
+        replyToUser: currentItem.replyToUser,
+        replyToText: currentItem.replyToText,
       });
     } else {
       // プレーンテキストとして表示
@@ -240,7 +246,9 @@ export class TextQueue {
           this.onMessageSend({
             text: text,
             user: metadata.user,
-            userIcon: metadata.userIcon
+            userIcon: metadata.userIcon,
+            replyToUser: metadata.replyToUser,
+            replyToText: metadata.replyToText,
           });
         } else {
           // プレーンテキストとして送信

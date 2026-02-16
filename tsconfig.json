@@ -15,7 +15,10 @@
     "typeRoots": ["./node_modules/@types"]
   },
   "include": [
-    "src/**/*",
-    "src/global.d.ts"
+    "src/**/*"
+  ],
+  "exclude": [
+    "src/main.ts",
+    "src/preload.ts"
   ]
 }

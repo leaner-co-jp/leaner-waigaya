@@ -3,14 +3,14 @@
   "productName": "Leaners Waigaya",
   "version": "1.0.0",
   "description": "Slack Message Display App",
-  "main": ".vite/build/main.js",
   "scripts": {
-    "package": "electron-forge package",
-    "publish": "electron-forge publish",
-    "lint": "echo \"No linting configured\"",
-    "start": "electron-forge start",
+    "dev": "vite",
+    "build": "vite build",
+    "tauri": "cargo tauri",
+    "tauri:dev": "cargo tauri dev",
+    "tauri:build": "cargo tauri build",
     "type:check": "tsc",
-    "make": "electron-forge make"
+    "lint": "echo \"No linting configured\""
   },
   "keywords": [],
   "author": {
@@ -19,33 +19,23 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@electron-forge/cli": "^7.8.1",
-    "@electron-forge/maker-deb": "^7.8.1",
-    "@electron-forge/maker-rpm": "^7.8.1",
-    "@electron-forge/maker-squirrel": "^7.8.1",
-    "@electron-forge/maker-zip": "^7.8.1",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.8.1",
-    "@electron-forge/plugin-fuses": "^7.8.1",
-    "@electron-forge/plugin-vite": "^7.8.1",
-    "@electron/fuses": "^1.8.0",
+    "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.5.2",
     "autoprefixer": "^10.4.20",
-    "electron": "36.4.0",
     "postcss": "^8.5.2",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
     "vite": "^5.4.19"
   },
   "dependencies": {
-    "@slack/socket-mode": "^2.0.4",
-    "@slack/web-api": "^7.9.2",
-    "bufferutil": "^4.0.9",
-    "electron-squirrel-startup": "^1.0.1",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.0",
     "framer-motion": "^12.18.1",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "utf-8-validate": "^5.0.10"
+    "react-dom": "^19.1.0"
   }
 }
