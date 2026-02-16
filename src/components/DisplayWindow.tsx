@@ -128,15 +128,15 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           </div>
         </div>
       )}
-      <div className="flex gap-3">
+      <div className="flex gap-2">
         <img
           src={message.userIcon}
-          className="w-8 h-8 rounded-md"
+          className="w-9 h-9 rounded-lg flex-shrink-0"
           alt={message.user}
         />
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col">
           <div
-            className="text-sm font-bold leading-none"
+            className="text-[15px] font-bold leading-snug"
             style={{ color: displaySettings.textColor }}
           >
             {message.user}
@@ -146,7 +146,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
               fontSize: `${displaySettings.fontSize}px`,
               color: displaySettings.textColor,
             }}
-            className="leading-none"
+            className="font-normal leading-[1.375] tracking-tight"
             dangerouslySetInnerHTML={{
               __html: emojiConverter.convertEmojisToReact(message.text),
             }}

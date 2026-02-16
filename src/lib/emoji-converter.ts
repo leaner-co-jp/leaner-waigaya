@@ -207,10 +207,40 @@ export class EmojiConverter {
   }
 
   /**
-   * React用の絵文字変換（dangerouslySetInnerHTML用）
+   * Slackのmrkdwn記法をHTMLに変換
+   */
+  convertMrkdwn(text: string): string {
+    if (!text) return text;
+
+    // コードブロック ```...``` を先に処理（内部のマークアップを無視するため）
+    text = text.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+
+    // インラインコード `...`
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // 太字 *...*
+    text = text.replace(/(?<!\w)\*([^\*]+)\*(?!\w)/g, '<strong>$1</strong>');
+
+    // イタリック _..._
+    text = text.replace(/(?<!\w)_([^_]+)_(?!\w)/g, '<em>$1</em>');
+
+    // 取り消し線 ~...~
+    text = text.replace(/(?<!\w)~([^~]+)~(?!\w)/g, '<del>$1</del>');
+
+    // 改行
+    text = text.replace(/\n/g, '<br>');
+
+    return text;
+  }
+
+  /**
+   * React用のテキスト変換（絵文字+mrkdwn、dangerouslySetInnerHTML用）
+   * 注: 入力はSlack APIからのテキストでユーザー直接入力ではない
    */
   convertEmojisToReact(text: string): string {
-    return this.convertSlackEmojis(text);
+    let result = this.convertSlackEmojis(text);
+    result = this.convertMrkdwn(result);
+    return result;
   }
 
   /**

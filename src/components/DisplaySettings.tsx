@@ -9,7 +9,7 @@ export interface DisplaySettings {
 
 // 現行システムのデフォルト値に合わせて調整
 const DEFAULT_SETTINGS: DisplaySettings = {
-  fontSize: 20,           // 現行システムのデフォルト値
+  fontSize: 17,
   textColor: '#ffffff',   // 現行システムのデフォルト値
   backgroundColor: '#000000', // 現行システムのデフォルト値
   opacity: 0.5,          // 現行システムのデフォルト値
