@@ -5,8 +5,6 @@ export interface DisplaySettings {
   textColor: string;       // テキスト色（現行：#ffffff）
   backgroundColor: string; // 背景色（現行：#000000）
   opacity: number;         // 透明度（現行：0.5、範囲0.0-1.0）
-  fadeTime: number;        // フェード時間（1-10秒）
-  borderRadius: number;    // 角丸半径（0-20px）
 }
 
 // 現行システムのデフォルト値に合わせて調整
@@ -15,8 +13,6 @@ const DEFAULT_SETTINGS: DisplaySettings = {
   textColor: '#ffffff',   // 現行システムのデフォルト値
   backgroundColor: '#000000', // 現行システムのデフォルト値
   opacity: 0.5,          // 現行システムのデフォルト値
-  fadeTime: 3,
-  borderRadius: 8,
 };
 
 interface DisplaySettingsProps {
@@ -164,43 +160,6 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
             </div>
           </div>
 
-          {/* フェード時間 */}
-          <div>
-            <label className="block mb-1 font-semibold">
-              フェード時間: {settings.fadeTime}秒
-            </label>
-            <input
-              type="range"
-              min={1}
-              max={10}
-              value={settings.fadeTime}
-              onChange={(e) => handleSettingChange('fadeTime', parseInt(e.target.value))}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>1秒</span>
-              <span>10秒</span>
-            </div>
-          </div>
-
-          {/* 角丸半径 */}
-          <div>
-            <label className="block mb-1 font-semibold">
-              角丸半径: {settings.borderRadius}px
-            </label>
-            <input
-              type="range"
-              min={0}
-              max={20}
-              value={settings.borderRadius}
-              onChange={(e) => handleSettingChange('borderRadius', parseInt(e.target.value))}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-gray-500">
-              <span>0px</span>
-              <span>20px</span>
-            </div>
-          </div>
         </div>
 
         {/* プレビュー */}
@@ -212,7 +171,7 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
               color: settings.textColor,
               backgroundColor: settings.backgroundColor,
               opacity: settings.opacity,
-              borderRadius: `${settings.borderRadius}px`,
+              borderRadius: '8px',
               padding: '8px 12px',
               display: 'inline-block',
             }}

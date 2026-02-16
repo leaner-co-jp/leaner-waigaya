@@ -63,7 +63,7 @@ export const DisplayWindow: React.FC = () => {
       >
         #{channelName}
       </div>
-      <div className="flex flex-col gap-2 m-2 overflow-hidden">
+      <div className="flex flex-col overflow-hidden">
         <AnimatePresence>
           {messages.map((message) => (
             <MessageItem key={message.id} message={message} />
@@ -114,17 +114,12 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
       style={{
         backgroundColor: bgColorWithAlpha,
         color: displaySettings.textColor,
-        borderRadius: `${displaySettings.borderRadius}px`,
         overflowWrap: "break-word",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
       }}
-      className="px-2 py-2"
+      className="px-1 py-1"
     >
       {message.replyToUser && message.replyToText && (
-        <div
-          className="mb-1 pl-2 border-l-2 border-gray-400"
-          style={{ opacity: 0.7 }}
-        >
+        <div className="mb-1 pl-2 " style={{ opacity: 0.7 }}>
           <div className="text-xs" style={{ color: displaySettings.textColor }}>
             ↩
           </div>
@@ -148,10 +143,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           }}
         />
         <div className="flex-1">
-          <div
-            className="font-bold text-sm"
-            style={{ color: displaySettings.textColor }}
-          >
+          <div className="text-sm" style={{ color: displaySettings.textColor }}>
             {message.user}
           </div>
           <div
