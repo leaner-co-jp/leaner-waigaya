@@ -116,34 +116,29 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
         color: displaySettings.textColor,
         overflowWrap: "break-word",
       }}
-      className="px-1 py-1"
+      className="px-2 py-2 h-max"
     >
       {message.replyToUser && message.replyToText && (
         <div className="mb-1 pl-2 " style={{ opacity: 0.7 }}>
-          <div className="text-xs" style={{ color: displaySettings.textColor }}>
-            ↩
-          </div>
           <div
             className="text-xs truncate"
             style={{ color: displaySettings.textColor, maxWidth: "100%" }}
           >
-            「{message.replyToText}」
+            <span className="text-xs">↩</span>「{message.replyToText}」
           </div>
         </div>
       )}
-      <div className="flex items-start gap-2">
+      <div className="flex gap-3">
         <img
           src={message.userIcon}
           className="w-8 h-8 rounded-md"
           alt={message.user}
-          onError={(e) => {
-            const target = e.target as HTMLImageElement
-            target.src =
-              'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="%23ccc"/><text x="16" y="21" text-anchor="middle" fill="white" font-size="14">👤</text></svg>'
-          }}
         />
-        <div className="flex-1">
-          <div className="text-sm" style={{ color: displaySettings.textColor }}>
+        <div className="flex flex-col gap-1">
+          <div
+            className="text-sm font-bold leading-none"
+            style={{ color: displaySettings.textColor }}
+          >
             {message.user}
           </div>
           <div
@@ -151,6 +146,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
               fontSize: `${displaySettings.fontSize}px`,
               color: displaySettings.textColor,
             }}
+            className="leading-none"
             dangerouslySetInnerHTML={{
               __html: emojiConverter.convertEmojisToReact(message.text),
             }}
