@@ -102,6 +102,7 @@ export interface ElectronAPI {
   getCustomEmojis: () => Promise<EmojiListResult>;
   saveEmojisData: (emojis: any) => Promise<{ success: boolean; error?: string }>;
   onCustomEmojisData: (callback: (emojis: any) => void) => void;
+  getEmojisLastUpdated: () => Promise<number | null>;
 
   // ローカルデータ管理
   setLocalUsersData: () => Promise<{ success: boolean; data?: any; error?: string }>;

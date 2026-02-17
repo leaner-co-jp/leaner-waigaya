@@ -250,8 +250,37 @@ export const SlackConnection: React.FC = () => {
       }
 
       console.log("✅ ローカルデータ自動読み込み完了")
+
+      // 3. カスタム絵文字の更新チェック（1週間以上経過していたら自動取得）
+      await refreshEmojisIfStale()
     } catch (error) {
       console.error("❌ ローカルデータ読み込みエラー:", error)
+    }
+  }
+
+  // カスタム絵文字が古い場合（1週間以上）に自動取得
+  const refreshEmojisIfStale = async () => {
+    const ONE_WEEK_SECONDS = 7 * 24 * 60 * 60
+
+    try {
+      const lastUpdated = await window.electronAPI.getEmojisLastUpdated()
+      const nowSeconds = Math.floor(Date.now() / 1000)
+
+      if (lastUpdated === null || nowSeconds - lastUpdated >= ONE_WEEK_SECONDS) {
+        const reason = lastUpdated === null ? "データなし" : "1週間以上経過"
+        console.log(`📙 カスタム絵文字自動取得開始（${reason}）`)
+        const result = await window.electronAPI.getCustomEmojis()
+        if (result.success && result.emojis) {
+          console.log(`📙 カスタム絵文字自動取得完了: ${result.emojis.length}個`)
+        } else {
+          console.warn("⚠️ カスタム絵文字自動取得失敗:", result.error)
+        }
+      } else {
+        const daysAgo = Math.floor((nowSeconds - lastUpdated) / 86400)
+        console.log(`📙 カスタム絵文字は最新です（${daysAgo}日前に取得済み）`)
+      }
+    } catch (error) {
+      console.error("❌ カスタム絵文字更新チェックエラー:", error)
     }
   }
 

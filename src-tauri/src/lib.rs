@@ -49,6 +49,7 @@ pub fn run() {
             slack::set_local_emojis_data,
             slack::get_cache_status,
             slack::get_emoji_url,
+            slack::get_emojis_last_updated,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

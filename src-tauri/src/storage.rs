@@ -136,6 +136,19 @@ impl StorageState {
         Ok(())
     }
 
+    /// 絵文字データファイルの最終更新日時をUnixタイムスタンプ（秒）で取得
+    pub fn get_emojis_last_updated(&self) -> Option<u64> {
+        let path = self.emojis_path();
+        if !path.exists() {
+            return None;
+        }
+        fs::metadata(&path)
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+    }
+
     /// 絵文字データを読み込み
     pub fn load_emojis_data(&self) -> Result<serde_json::Value, String> {
         let path = self.emojis_path();

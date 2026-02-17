@@ -220,6 +220,13 @@ pub async fn save_emojis_data(
     }
 }
 
+#[tauri::command]
+pub async fn get_emojis_last_updated(
+    storage: State<'_, StorageState>,
+) -> Result<Option<u64>, String> {
+    Ok(storage.get_emojis_last_updated())
+}
+
 // --- ローカルデータ管理 ---
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -94,6 +94,9 @@ export const tauriAPI = {
     return () => { if (unlisten) unlisten(); };
   },
 
+  getEmojisLastUpdated: (): Promise<number | null> =>
+    invoke('get_emojis_last_updated'),
+
   // ローカルデータ管理
   setLocalUsersData: (): Promise<{ success: boolean; data?: any; error?: string }> =>
     invoke('set_local_users_data'),
