@@ -21,6 +21,11 @@ export interface ConfigLoadResult {
   error?: string;
 }
 
+export interface ImageData {
+  dataUrl: string;
+  name?: string;
+}
+
 export interface SlackMessage {
   text: string;
   user: string;
@@ -31,6 +36,7 @@ export interface SlackMessage {
   threadTs?: string;
   replyToUser?: string;
   replyToText?: string;
+  images?: ImageData[];
 }
 
 export interface SlackChannel {

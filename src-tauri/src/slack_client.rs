@@ -1,3 +1,4 @@
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -47,6 +48,31 @@ pub struct SlackMessage {
     pub reply_to_user: Option<String>,
     #[serde(rename = "replyToText", default)]
     pub reply_to_text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub images: Option<Vec<ImageData>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageData {
+    #[serde(rename = "dataUrl")]
+    pub data_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SlackFileObject {
+    #[allow(dead_code)]
+    id: Option<String>,
+    mimetype: Option<String>,
+    url_private_download: Option<String>,
+    url_private: Option<String>,
+    thumb_480: Option<String>,
+    thumb_360: Option<String>,
+    #[allow(dead_code)]
+    name: Option<String>,
+    #[allow(dead_code)]
+    filetype: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,6 +251,8 @@ struct SlackEvent {
     #[allow(dead_code)]
     #[serde(default)]
     parent_user_id: Option<String>,
+    #[serde(default)]
+    files: Option<Vec<SlackFileObject>>,
 }
 
 // === SlackClient 本体 ===
@@ -1025,23 +1053,65 @@ impl SlackClientState {
                                                             (None, None)
                                                         };
 
-                                                        let message = SlackMessage {
-                                                            text,
-                                                            user: user_name,
-                                                            user_icon,
-                                                            channel: Some(channel.clone()),
-                                                            timestamp: ts,
-                                                            queue_action: Some("addToQueue".to_string()),
-                                                            thread_ts,
-                                                            reply_to_user,
-                                                            reply_to_text,
+                                                        // 画像ファイルの処理
+                                                        let images = if let Some(files) = &event.files {
+                                                            let mut image_list = Vec::new();
+                                                            for file in files {
+                                                                let mime = file.mimetype.as_deref().unwrap_or("");
+                                                                if !mime.starts_with("image/") {
+                                                                    continue;
+                                                                }
+                                                                // 複数のURLを優先順に試行
+                                                                let candidate_urls: Vec<&str> = [
+                                                                    file.url_private_download.as_deref(),
+                                                                    file.thumb_480.as_deref(),
+                                                                    file.thumb_360.as_deref(),
+                                                                    file.url_private.as_deref(),
+                                                                ].into_iter().flatten().collect();
+
+                                                                let mut fetched = false;
+                                                                for url in &candidate_urls {
+                                                                    if let Some(data_url) = Self::fetch_image_as_data_url(&bot_token, url, mime).await {
+                                                                        image_list.push(ImageData {
+                                                                            data_url,
+                                                                            name: file.name.clone(),
+                                                                        });
+                                                                        fetched = true;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                                if !fetched {
+                                                                    log::warn!("全URLで画像取得失敗: name={:?}", file.name);
+                                                                }
+                                                            }
+                                                            if image_list.is_empty() { None } else { Some(image_list) }
+                                                        } else {
+                                                            None
                                                         };
 
-                                                        // Tauri Eventでフロントエンドに送信
-                                                        if let Err(e) = app_handle.emit("add-to-text-queue", &message) {
-                                                            log::error!("メッセージ送信エラー: {}", e);
-                                                        } else {
-                                                            log::info!("メッセージをフロントエンドに送信: {}", message.text.chars().take(50).collect::<String>());
+                                                        let has_text = !text.is_empty();
+                                                        let has_images = images.is_some();
+
+                                                        if has_text || has_images {
+                                                            let message = SlackMessage {
+                                                                text,
+                                                                user: user_name,
+                                                                user_icon,
+                                                                channel: Some(channel.clone()),
+                                                                timestamp: ts,
+                                                                queue_action: Some("addToQueue".to_string()),
+                                                                thread_ts,
+                                                                reply_to_user,
+                                                                reply_to_text,
+                                                                images,
+                                                            };
+
+                                                            // Tauri Eventでフロントエンドに送信
+                                                            if let Err(e) = app_handle.emit("add-to-text-queue", &message) {
+                                                                log::error!("メッセージ送信エラー: {}", e);
+                                                            } else {
+                                                                log::info!("メッセージをフロントエンドに送信: {}", message.text.chars().take(50).collect::<String>());
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -1076,6 +1146,77 @@ impl SlackClientState {
 
         inner.write().await.is_connected = false;
         Ok(())
+    }
+
+    /// Slack画像をダウンロードしてdata URLに変換
+    /// Slackのファイル URLは302リダイレクトでCDNに転送される。
+    /// リダイレクト時にAuthorizationヘッダーが別ホストに転送されないため、
+    /// リダイレクトを無効化し、Locationヘッダーを取得して直接フェッチする。
+    async fn fetch_image_as_data_url(bot_token: &str, url: &str, mimetype: &str) -> Option<String> {
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .ok()?;
+
+        // Step 1: Bearer認証付きでリクエスト → リダイレクトURLを取得
+        let resp = client
+            .get(url)
+            .header("Authorization", format!("Bearer {}", bot_token))
+            .send()
+            .await
+            .ok()?;
+
+        let status = resp.status();
+
+        if status.is_redirection() {
+            // Step 2: リダイレクト先URL（CDN、認証トークン埋め込み済み）を取得してフェッチ
+            let redirect_url = resp.headers().get("location")
+                .and_then(|v| v.to_str().ok())?;
+            log::debug!("画像リダイレクト先: {}", &redirect_url[..redirect_url.len().min(80)]);
+
+            let img_resp = reqwest::get(redirect_url).await.ok()?;
+            if !img_resp.status().is_success() {
+                log::warn!("画像リダイレクト先ダウンロード失敗: status={}", img_resp.status());
+                return None;
+            }
+            let content_type = img_resp.headers().get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            if content_type.contains("text/html") {
+                log::warn!("画像リダイレクト先がHTMLを返却: url={}", redirect_url);
+                return None;
+            }
+            let actual_mime = if content_type.starts_with("image/") {
+                content_type.split(';').next().unwrap_or(mimetype).to_string()
+            } else {
+                mimetype.to_string()
+            };
+            let bytes = img_resp.bytes().await.ok()?;
+            let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            Some(format!("data:{};base64,{}", actual_mime, encoded))
+        } else if status.is_success() {
+            // リダイレクトなしで直接取得できた場合
+            let content_type = resp.headers().get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_string();
+            if content_type.contains("text/html") {
+                log::warn!("画像URLがHTMLを返却: url={}", url);
+                return None;
+            }
+            let actual_mime = if content_type.starts_with("image/") {
+                content_type.split(';').next().unwrap_or(mimetype).to_string()
+            } else {
+                mimetype.to_string()
+            };
+            let bytes = resp.bytes().await.ok()?;
+            let encoded = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            Some(format!("data:{};base64,{}", actual_mime, encoded))
+        } else {
+            log::warn!("画像ダウンロード失敗: status={}", status);
+            None
+        }
     }
 
     /// ユーザー情報を取得（static版、Socket Modeタスク内で使用）

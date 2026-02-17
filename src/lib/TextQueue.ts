@@ -1,4 +1,4 @@
-import { SlackMessage } from './types';
+import { SlackMessage, ImageData } from './types';
 
 export interface QueueItem {
   id: number;
@@ -9,6 +9,7 @@ export interface QueueItem {
   type: 'slack' | 'text';
   replyToUser?: string;
   replyToText?: string;
+  images?: ImageData[];
 }
 
 export interface DisplaySettings {
@@ -95,16 +96,19 @@ export class TextQueue {
 
   // Slackメッセージをキューに追加（現行実装と同じ）
   addSlackMessage(messageData: SlackMessage): void {
-    if (messageData.text && messageData.text.trim()) {
+    const hasText = messageData.text && messageData.text.trim();
+    const hasImages = messageData.images && messageData.images.length > 0;
+    if (hasText || hasImages) {
       const queueItem: QueueItem = {
         id: Date.now(),
-        text: messageData.text.trim(),
+        text: hasText ? messageData.text.trim() : '',
         user: messageData.user,
         userIcon: messageData.userIcon,
         timestamp: new Date().toLocaleTimeString(),
         type: 'slack',
         replyToUser: messageData.replyToUser,
         replyToText: messageData.replyToText,
+        images: messageData.images,
       };
 
       // キューサイズ制限（TypeScript版で追加）
@@ -215,6 +219,7 @@ export class TextQueue {
         type: 'slack',
         replyToUser: currentItem.replyToUser,
         replyToText: currentItem.replyToText,
+        images: currentItem.images,
       });
     } else {
       // プレーンテキストとして表示
@@ -249,6 +254,7 @@ export class TextQueue {
             userIcon: metadata.userIcon,
             replyToUser: metadata.replyToUser,
             replyToText: metadata.replyToText,
+            images: metadata.images,
           });
         } else {
           // プレーンテキストとして送信

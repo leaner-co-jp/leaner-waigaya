@@ -100,7 +100,9 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
     displaySettings.opacity,
   )
 
-  if (!message.text) {
+  const hasText = !!message.text
+  const hasImages = message.images && message.images.length > 0
+  if (!hasText && !hasImages) {
     return null
   }
 
@@ -141,16 +143,31 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           >
             {message.user}
           </div>
-          <div
-            style={{
-              fontSize: `${displaySettings.fontSize}px`,
-              color: displaySettings.textColor,
-            }}
-            className="font-normal leading-[1.375] tracking-tight"
-            dangerouslySetInnerHTML={{
-              __html: emojiConverter.convertEmojisToReact(message.text),
-            }}
-          />
+          {hasText && (
+            <div
+              style={{
+                fontSize: `${displaySettings.fontSize}px`,
+                color: displaySettings.textColor,
+              }}
+              className="font-normal leading-[1.375] tracking-tight"
+              dangerouslySetInnerHTML={{
+                __html: emojiConverter.convertEmojisToReact(message.text),
+              }}
+            />
+          )}
+          {hasImages && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {message.images!.map((img, idx) => (
+                <img
+                  key={idx}
+                  src={img.dataUrl}
+                  alt={img.name || "image"}
+                  className="rounded max-h-48 max-w-full object-contain"
+                  style={{ maxWidth: "360px" }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </motion.div>
