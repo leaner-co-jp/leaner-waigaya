@@ -1014,6 +1014,7 @@ impl SlackClientState {
                                                     if is_watched {
                                                         let user_id = event.user.clone().unwrap_or_default();
                                                         let text = event.text.clone().unwrap_or_default();
+                                                        let text = Self::resolve_mentions(&text, &bot_token, &inner).await;
                                                         let ts = event.ts.clone();
 
                                                         // ユーザー情報を取得
@@ -1042,6 +1043,7 @@ impl SlackClientState {
                                                                         .and_then(|v| v.as_str())
                                                                         .unwrap_or("unknown")
                                                                         .to_string();
+                                                                    let parent_text = Self::resolve_mentions(&parent_text, &bot_token, &inner).await;
                                                                     (Some(parent_user_name), Some(parent_text))
                                                                 } else {
                                                                     (None, None)
@@ -1306,5 +1308,58 @@ impl SlackClientState {
         }
 
         None
+    }
+
+    /// テキスト中の <@UXXXXX> メンションをユーザー名に置換する
+    async fn resolve_mentions(
+        text: &str,
+        bot_token: &str,
+        inner: &Arc<RwLock<SlackClientInner>>,
+    ) -> String {
+        let re = regex::Regex::new(r"<@(U[A-Z0-9]+)(?:\|[^>]*)?>").unwrap();
+        let mut result = text.to_string();
+
+        // マッチするユーザーIDを収集（重複排除）
+        let user_ids: Vec<String> = {
+            let mut ids = Vec::new();
+            for cap in re.captures_iter(text) {
+                if let Some(m) = cap.get(1) {
+                    let id = m.as_str().to_string();
+                    if !ids.contains(&id) {
+                        ids.push(id);
+                    }
+                }
+            }
+            ids
+        };
+
+        for user_id in user_ids {
+            let user_info = Self::fetch_user_info_static(bot_token, &user_id, inner).await;
+            let display_name = user_info.get("profile")
+                .and_then(|p| p.get("display_name"))
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .or_else(|| user_info.get("real_name").and_then(|v| v.as_str()))
+                .or_else(|| user_info.get("name").and_then(|v| v.as_str()))
+                .unwrap_or("unknown");
+
+            // HTMLエスケープ
+            let escaped_name = display_name
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;")
+                .replace('"', "&quot;");
+
+            // <@UXXXXX> と <@UXXXXX|name> の両方を置換
+            let pattern = format!(r"<@{}(?:\|[^>]*)?>", regex::escape(&user_id));
+            if let Ok(re_user) = regex::Regex::new(&pattern) {
+                result = re_user.replace_all(
+                    &result,
+                    format!(r#"<span class="slack-mention">@{}</span>"#, escaped_name),
+                ).to_string();
+            }
+        }
+
+        result
     }
 }

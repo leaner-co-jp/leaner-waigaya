@@ -126,7 +126,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
             className="text-xs truncate"
             style={{ color: displaySettings.textColor, maxWidth: "100%" }}
           >
-            <span className="text-xs">↩</span>「{message.replyToText}」
+            <span className="text-xs">↩</span>「<span dangerouslySetInnerHTML={{ __html: emojiConverter.convertEmojisToReact(message.replyToText!) }} />」
           </div>
         </div>
       )}
