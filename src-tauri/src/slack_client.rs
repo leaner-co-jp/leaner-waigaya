@@ -1014,7 +1014,6 @@ impl SlackClientState {
                 msg = read.next() => {
                     match msg {
                         Some(Ok(Message::Text(text))) => {
-                            eprintln!("[DEBUG] Socket Mode受信: {}", &text.chars().take(500).collect::<String>());
                             if let Ok(socket_msg) = serde_json::from_str::<SocketModeMessage>(&text) {
                                 // ACK を送信
                                 if let Some(ref envelope_id) = socket_msg.envelope_id {
@@ -1028,7 +1027,6 @@ impl SlackClientState {
                                 if socket_msg.msg_type.as_deref() == Some("events_api") {
                                     if let Some(payload) = &socket_msg.payload {
                                         if let Some(event) = &payload.event {
-                                            eprintln!("[INFO] イベントタイプ受信: {:?}", event.event_type);
                                             if event.event_type.as_deref() == Some("reaction_added") || event.event_type.as_deref() == Some("reaction_removed") {
                                                 if let Some(item) = &event.item {
                                                     if let Some(item_channel) = &item.channel {
@@ -1036,7 +1034,6 @@ impl SlackClientState {
                                                             inner.read().await.watched_channels.contains(item_channel)
                                                         };
 
-                                                        eprintln!("[INFO] リアクション: channel={}, is_watched={}", item_channel, is_watched);
                                                         if is_watched {
                                                             let action = if event.event_type.as_deref() == Some("reaction_added") {
                                                                 "added"
@@ -1062,9 +1059,7 @@ impl SlackClientState {
                                                             };
 
                                                             if let Err(e) = app_handle.emit("slack-reaction", &reaction_event) {
-                                                                eprintln!("[ERROR] リアクションイベント送信エラー: {}", e);
-                                                            } else {
-                                                                eprintln!("[INFO] リアクションイベントをフロントエンドに送信: {} :{}: ", action, reaction_name);
+                                                                log::error!("リアクションイベント送信エラー: {}", e);
                                                             }
                                                         }
                                                     }

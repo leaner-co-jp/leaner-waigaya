@@ -29,13 +29,10 @@ export const DisplayWindow: React.FC = () => {
     }
 
     const handleReaction = (event: SlackReactionEvent) => {
-      console.log("[Reaction] received:", event)
       setMessages((prev) => {
-        console.log("[Reaction] messages:", prev.map(m => ({ channel: m.channel, ts: m.timestamp })))
         const idx = prev.findIndex(
           (m) => m.channel === event.channel && m.timestamp === event.message_ts,
         )
-        console.log("[Reaction] matched idx:", idx)
         if (idx === -1) return prev
 
         const updated = [...prev]
