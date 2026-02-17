@@ -132,6 +132,7 @@ pub struct UsersCountResult {
 pub async fn slack_reload_users(
     slack: State<'_, SlackClientState>,
     storage: State<'_, StorageState>,
+    app_handle: AppHandle,
 ) -> Result<UsersReloadResult, String> {
     match slack.fetch_all_users().await {
         Ok((count, users_json)) => {
@@ -139,6 +140,8 @@ pub async fn slack_reload_users(
             if let Err(e) = storage.save_users_data(&users_json) {
                 log::error!("ユーザーデータ保存エラー: {}", e);
             }
+            // UIに更新を通知
+            let _ = app_handle.emit("user-data-updated", count);
             Ok(UsersReloadResult {
                 success: true,
                 count: Some(count),
