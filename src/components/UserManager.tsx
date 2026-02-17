@@ -142,7 +142,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ isConnected }) => {
         <button
           onClick={handleReloadUsers}
           disabled={!isConnected || isLoading}
-          className="bg-blue-600 text-white rounded px-3 py-1 text-sm hover:bg-blue-700 disabled:opacity-50"
+          className="bg-blue-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-blue-700 disabled:opacity-50"
         >
           {isLoading ? "リロード中..." : "リロード"}
         </button>

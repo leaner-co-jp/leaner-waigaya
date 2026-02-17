@@ -358,7 +358,7 @@ export const SlackConnection: React.FC = () => {
               </div>
             </div>
             <button
-              className="small-btn bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+              className="small-btn bg-blue-600 text-white px-3 py-1 rounded-sm text-sm hover:bg-blue-700 disabled:opacity-50"
               onClick={() => setShowConnectionDialog(true)}
               disabled={isLoading}
             >
@@ -380,19 +380,19 @@ export const SlackConnection: React.FC = () => {
           <h3 className="font-semibold text-lg mb-3">🧪 テスト機能</h3>
           <button
             onClick={addSampleMessage}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-800 mr-2 mb-2"
+            className="bg-blue-600 text-white px-4 py-2 rounded-sm hover:bg-blue-800 mr-2 mb-2"
           >
             サンプルメッセージを追加
           </button>
           <button
             onClick={() => setShowDisplaySettings(true)}
-            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-800 mr-2 mb-2"
+            className="bg-purple-600 text-white px-4 py-2 rounded-sm hover:bg-purple-800 mr-2 mb-2"
           >
             🎨 表示設定
           </button>
           <button
             onClick={() => setShowEmojiManager(true)}
-            className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-800 mr-2 mb-2"
+            className="bg-yellow-600 text-white px-4 py-2 rounded-sm hover:bg-yellow-800 mr-2 mb-2"
             disabled={!isConnected}
           >
             📙 絵文字管理
@@ -410,7 +410,7 @@ export const SlackConnection: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">🔌 Slack接続設定</h2>
               <button
-                className="bg-gray-300 text-gray-800 rounded px-3 py-1 hover:bg-gray-400"
+                className="bg-gray-300 text-gray-800 rounded-sm px-3 py-1 hover:bg-gray-400"
                 onClick={() => setShowConnectionDialog(false)}
               >
                 閉じる
@@ -430,7 +430,7 @@ export const SlackConnection: React.FC = () => {
                   onChange={(e) =>
                     setConfig({ ...config, botToken: e.target.value })
                   }
-                  className="border rounded px-3 py-2 mb-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="border rounded-sm px-3 py-2 mb-2 w-full focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -446,7 +446,7 @@ export const SlackConnection: React.FC = () => {
                   onChange={(e) =>
                     setConfig({ ...config, appToken: e.target.value })
                   }
-                  className="border rounded px-3 py-2 mb-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="border rounded-sm px-3 py-2 mb-2 w-full focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -454,20 +454,20 @@ export const SlackConnection: React.FC = () => {
                 <button
                   onClick={() => testConnection()}
                   disabled={isLoading || !config.botToken || !config.appToken}
-                  className="bg-green-600 text-white rounded px-4 py-2 hover:bg-green-800 disabled:opacity-50"
+                  className="bg-green-600 text-white rounded-sm px-4 py-2 hover:bg-green-800 disabled:opacity-50"
                 >
                   {isLoading ? "接続テスト中..." : "接続テスト"}
                 </button>
                 <button
                   onClick={handleConnect}
                   disabled={isLoading || !config.botToken || !config.appToken}
-                  className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-800 disabled:opacity-50"
+                  className="bg-blue-600 text-white rounded-sm px-4 py-2 hover:bg-blue-800 disabled:opacity-50"
                 >
                   {isLoading ? "接続中..." : "Slack接続"}
                 </button>
                 <button
                   onClick={handleClearConfig}
-                  className="bg-red-600 text-white rounded px-4 py-2 hover:bg-red-800"
+                  className="bg-red-600 text-white rounded-sm px-4 py-2 hover:bg-red-800"
                 >
                   設定クリア
                 </button>

@@ -158,7 +158,7 @@ export const EmojiManager: React.FC<EmojiManagerProps> = ({
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold">📙 カスタム絵文字管理</h2>
           <button
-            className="bg-gray-300 text-gray-800 rounded px-3 py-1 hover:bg-gray-400"
+            className="bg-gray-300 text-gray-800 rounded-sm px-3 py-1 hover:bg-gray-400"
             onClick={onClose}
           >
             閉じる
@@ -209,13 +209,13 @@ export const EmojiManager: React.FC<EmojiManagerProps> = ({
             placeholder="絵文字名で検索..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="border rounded px-3 py-2 flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border rounded-sm px-3 py-2 flex-1 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             disabled={!isConnected}
           />
           <button
             onClick={loadEmojis}
             disabled={!isConnected || isLoading}
-            className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-800 whitespace-nowrap disabled:opacity-50"
+            className="bg-blue-600 text-white rounded-sm px-4 py-2 hover:bg-blue-800 whitespace-nowrap disabled:opacity-50"
           >
             {isLoading ? "読み込み中..." : "🔄 更新"}
           </button>
@@ -252,7 +252,7 @@ export const EmojiManager: React.FC<EmojiManagerProps> = ({
               {filteredEmojis.map((emoji) => (
                 <div
                   key={emoji.name}
-                  className="flex flex-col items-center p-2 border rounded hover:bg-gray-50 cursor-pointer"
+                  className="flex flex-col items-center p-2 border rounded-sm hover:bg-gray-50 cursor-pointer"
                   onClick={() => setSelectedEmoji(emoji)}
                   title={`:${emoji.name}:`}
                 >
@@ -276,7 +276,7 @@ export const EmojiManager: React.FC<EmojiManagerProps> = ({
 
         {/* 詳細表示・操作 */}
         {selectedEmoji && (
-          <div className="mt-4 p-4 bg-gray-50 rounded">
+          <div className="mt-4 p-4 bg-gray-50 rounded-sm">
             <div className="flex items-center gap-4">
               <img
                 src={selectedEmoji.url}
@@ -291,7 +291,7 @@ export const EmojiManager: React.FC<EmojiManagerProps> = ({
               </div>
               <button
                 onClick={() => copyEmojiCode(selectedEmoji.name)}
-                className="bg-green-600 text-white rounded px-3 py-1 hover:bg-green-700 text-sm"
+                className="bg-green-600 text-white rounded-sm px-3 py-1 hover:bg-green-700 text-sm"
               >
                 📋 コピー
               </button>

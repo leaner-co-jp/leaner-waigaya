@@ -181,7 +181,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
       <div className="flex gap-2">
         <img
           src={message.userIcon}
-          className="w-9 h-9 rounded-lg flex-shrink-0"
+          className="w-9 h-9 rounded-lg shrink-0"
           alt={message.user}
         />
         <div className="flex flex-col">
@@ -197,7 +197,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
                 fontSize: `${displaySettings.fontSize}px`,
                 color: displaySettings.textColor,
               }}
-              className="font-normal leading-[1.375] tracking-tight"
+              className="font-normal leading-snug tracking-tight"
               dangerouslySetInnerHTML={{
                 __html: emojiConverter.convertEmojisToReact(message.text),
               }}
@@ -210,7 +210,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
                   key={idx}
                   src={img.dataUrl}
                   alt={img.name || "image"}
-                  className="rounded max-h-48 max-w-full object-contain"
+                  className="rounded-sm max-h-48 max-w-full object-contain"
                   style={{ maxWidth: "360px" }}
                 />
               ))}

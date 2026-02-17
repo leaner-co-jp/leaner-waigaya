@@ -126,7 +126,7 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
             </div>
           </div>
           <button
-            className="bg-green-600 text-white rounded px-3 py-1 text-sm hover:bg-green-700 disabled:opacity-50"
+            className="bg-green-600 text-white rounded-sm px-3 py-1 text-sm hover:bg-green-700 disabled:opacity-50"
             onClick={() => setShowChannelDialog(true)}
             disabled={!isConnected}
           >
@@ -141,7 +141,7 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
             return (
               <div
                 key={channelId}
-                className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs mr-2 mb-1"
+                className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded-sm text-xs mr-2 mb-1"
               >
                 #{channelInfo?.name || channelId}
                 <button
@@ -169,7 +169,7 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">📺 チャンネル管理</h2>
               <button
-                className="bg-gray-300 text-gray-800 rounded px-3 py-1 hover:bg-gray-400"
+                className="bg-gray-300 text-gray-800 rounded-sm px-3 py-1 hover:bg-gray-400"
                 onClick={() => setShowChannelDialog(false)}
               >
                 閉じる
@@ -180,14 +180,14 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
               {/* 現在の監視チャンネル */}
               <div className="mb-4">
                 <h3 className="font-semibold mb-2">監視中のチャンネル</h3>
-                <div className="bg-gray-50 border rounded p-3 min-h-[60px]">
+                <div className="bg-gray-50 border rounded-sm p-3 min-h-[60px]">
                   {watchedChannels.length > 0 ? (
                     watchedChannels.map((channelId) => {
                       const channelInfo = watchedChannelData[channelId]
                       return (
                         <div
                           key={channelId}
-                          className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-sm mr-2 mb-1"
+                          className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded-sm text-sm mr-2 mb-1"
                         >
                           #{channelInfo?.name || channelId}
                           <button
@@ -219,13 +219,13 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
                     placeholder="チャンネル名で検索..."
                     value={channelSearch}
                     onChange={(e) => setChannelSearch(e.target.value)}
-                    className="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="border rounded-sm px-3 py-2 w-full focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                     disabled={!isConnected}
                   />
                   <button
                     onClick={loadChannelList}
                     disabled={!isConnected || isLoadingChannels}
-                    className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-800 whitespace-nowrap disabled:opacity-50"
+                    className="bg-blue-600 text-white rounded-sm px-4 py-2 hover:bg-blue-800 whitespace-nowrap disabled:opacity-50"
                   >
                     {isLoadingChannels ? "取得中..." : "一覧取得"}
                   </button>
@@ -239,7 +239,7 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
                 <select
                   value={selectedChannel}
                   onChange={(e) => setSelectedChannel(e.target.value)}
-                  className="border rounded px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+                  className="border rounded-sm px-3 py-2 w-full focus:outline-hidden focus:ring-2 focus:ring-blue-500 mb-2"
                   disabled={!isConnected || availableChannels.length === 0}
                   size={5}
                 >
@@ -263,7 +263,7 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
                 <button
                   onClick={addChannel}
                   disabled={!selectedChannel || !isConnected}
-                  className="bg-green-600 text-white rounded px-4 py-2 hover:bg-green-800 w-full disabled:opacity-50"
+                  className="bg-green-600 text-white rounded-sm px-4 py-2 hover:bg-green-800 w-full disabled:opacity-50"
                 >
                   選択したチャンネルを監視に追加
                 </button>

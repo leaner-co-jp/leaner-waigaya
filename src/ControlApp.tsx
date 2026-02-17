@@ -41,7 +41,7 @@ export const ControlApp: React.FC = () => {
           <button
             onClick={handleUpdate}
             disabled={updating}
-            className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-sm bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {updating ? "更新中..." : "更新する"}
           </button>

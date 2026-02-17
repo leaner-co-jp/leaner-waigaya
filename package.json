@@ -19,13 +19,13 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.4",
-    "autoprefixer": "^10.4.24",
     "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
   },

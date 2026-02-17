@@ -73,7 +73,7 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold">🎨 表示設定</h2>
           <button
-            className="bg-gray-300 text-gray-800 rounded px-3 py-1 hover:bg-gray-400"
+            className="bg-gray-300 text-gray-800 rounded-sm px-3 py-1 hover:bg-gray-400"
             onClick={onClose}
           >
             閉じる
@@ -108,13 +108,13 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
                 type="color"
                 value={settings.textColor}
                 onChange={(e) => handleSettingChange('textColor', e.target.value)}
-                className="w-12 h-8 border rounded"
+                className="w-12 h-8 border rounded-sm"
               />
               <input
                 type="text"
                 value={settings.textColor}
                 onChange={(e) => handleSettingChange('textColor', e.target.value)}
-                className="border rounded px-2 py-1 font-mono text-sm flex-1"
+                className="border rounded-sm px-2 py-1 font-mono text-sm flex-1"
                 placeholder="#000000"
               />
             </div>
@@ -128,13 +128,13 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
                 type="color"
                 value={settings.backgroundColor}
                 onChange={(e) => handleSettingChange('backgroundColor', e.target.value)}
-                className="w-12 h-8 border rounded"
+                className="w-12 h-8 border rounded-sm"
               />
               <input
                 type="text"
                 value={settings.backgroundColor}
                 onChange={(e) => handleSettingChange('backgroundColor', e.target.value)}
-                className="border rounded px-2 py-1 font-mono text-sm flex-1"
+                className="border rounded-sm px-2 py-1 font-mono text-sm flex-1"
                 placeholder="#ffffff"
               />
             </div>
@@ -163,7 +163,7 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
         </div>
 
         {/* プレビュー */}
-        <div className="mt-4 p-3 border rounded">
+        <div className="mt-4 p-3 border rounded-sm">
           <div className="text-sm font-semibold mb-2">プレビュー:</div>
           <div
             style={{
@@ -184,13 +184,13 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
         <div className="flex gap-2 mt-4">
           <button
             onClick={resetToDefaults}
-            className="bg-gray-600 text-white rounded px-4 py-2 hover:bg-gray-700 flex-1"
+            className="bg-gray-600 text-white rounded-sm px-4 py-2 hover:bg-gray-700 flex-1"
           >
             デフォルトに戻す
           </button>
           <button
             onClick={onClose}
-            className="bg-blue-600 text-white rounded px-4 py-2 hover:bg-blue-700 flex-1"
+            className="bg-blue-600 text-white rounded-sm px-4 py-2 hover:bg-blue-700 flex-1"
           >
             適用
           </button>
