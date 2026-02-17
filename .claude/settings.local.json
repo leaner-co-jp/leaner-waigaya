@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rustc:*)",
+      "Bash(cargo --version:*)",
+      "Bash(cargo install:*)",
+      "Bash(cargo tauri:*)",
+      "Bash(cargo build:*)",
+      "Bash(npx tauri build:*)",
+      "WebFetch(domain:v2.tauri.app)",
+      "WebFetch(domain:thatgurjot.com)",
+      "WebFetch(domain:ratulmaharaj.com)",
+      "Bash(gh run view:*)",
+      "Bash(npx tauri:*)",
+      "Bash(cargo check:*)"
+    ]
+  }
+}
