@@ -195,7 +195,7 @@ export class EmojiConverter {
   updateCustomEmojis(customEmojis: CustomEmojiMap): void {
     this.customEmojis = { ...customEmojis };
     this.isLoaded = true;
-    console.log(`🎨 カスタム絵文字キャッシュ更新: ${Object.keys(this.customEmojis).length}個`);
+    console.log(`🎨 カスタム絵文字をローカルデータから反映: ${Object.keys(this.customEmojis).length}個`);
   }
 
   /**
