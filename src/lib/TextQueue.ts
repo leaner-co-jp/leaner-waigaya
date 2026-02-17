@@ -24,7 +24,7 @@ export interface DisplaySettings {
 export class TextQueue {
   private queue: QueueItem[] = [];
   private currentIndex: number = -1;
-  private currentTimer: NodeJS.Timeout | null = null;
+  private currentTimer: ReturnType<typeof setTimeout> | null = null;
   private isPlaying: boolean = false;
   private maxQueueSize: number = 50; // TypeScript版で追加：キューサイズ制限
 
