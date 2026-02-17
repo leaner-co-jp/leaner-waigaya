@@ -101,9 +101,15 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
   }, [isConnected])
 
   // チャンネル検索フィルタリング
-  const filteredChannels = availableChannels.filter((channel) =>
-    channel.name.toLowerCase().includes(channelSearch.toLowerCase())
-  )
+  const filteredChannels = availableChannels
+    .filter((channel) =>
+      channel.name.toLowerCase().includes(channelSearch.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aMember = a.is_member ? 1 : 0
+      const bMember = b.is_member ? 1 : 0
+      return bMember - aMember
+    })
 
   return (
     <>
@@ -251,7 +257,11 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
                     <>
                       <option value="">チャンネルを選択してください</option>
                       {filteredChannels.map((channel) => (
-                        <option key={channel.id} value={channel.id}>
+                        <option
+                          key={channel.id}
+                          value={channel.id}
+                          disabled={!channel.is_member}
+                        >
                           #{channel.name}{" "}
                           {channel.is_private ? "(プライベート)" : ""}
                           {!channel.is_member ? " (未参加)" : ""}
