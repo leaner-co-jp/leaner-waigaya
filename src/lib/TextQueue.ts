@@ -10,6 +10,8 @@ export interface QueueItem {
   replyToUser?: string;
   replyToText?: string;
   images?: ImageData[];
+  channel?: string;
+  slackTs?: string;
 }
 
 export interface DisplaySettings {
@@ -109,6 +111,8 @@ export class TextQueue {
         replyToUser: messageData.replyToUser,
         replyToText: messageData.replyToText,
         images: messageData.images,
+        channel: messageData.channel,
+        slackTs: messageData.timestamp,
       };
 
       // キューサイズ制限（TypeScript版で追加）
@@ -220,6 +224,8 @@ export class TextQueue {
         replyToUser: currentItem.replyToUser,
         replyToText: currentItem.replyToText,
         images: currentItem.images,
+        channel: currentItem.channel,
+        slackTs: currentItem.slackTs,
       });
     } else {
       // プレーンテキストとして表示
@@ -255,6 +261,8 @@ export class TextQueue {
             replyToUser: metadata.replyToUser,
             replyToText: metadata.replyToText,
             images: metadata.images,
+            channel: metadata.channel,
+            timestamp: metadata.slackTs,
           });
         } else {
           // プレーンテキストとして送信

@@ -69,6 +69,20 @@ export interface EmojiListResult {
   error?: string;
 }
 
+export interface ReactionData {
+  name: string;
+  count: number;
+  users: string[];
+}
+
+export interface SlackReactionEvent {
+  action: string;
+  reaction: string;
+  user: string;
+  channel: string;
+  message_ts: string;
+}
+
 // IPC通信用の型定義
 export interface ElectronAPI {
   // 接続管理
@@ -81,6 +95,7 @@ export interface ElectronAPI {
   displaySlackMessage: (message: SlackMessage) => void;
   onDisplaySlackMessage: (callback: (message: SlackMessage) => void) => () => void;
   onAddToTextQueue: (callback: (message: SlackMessage) => void) => () => void;
+  onSlackReaction: (callback: (event: SlackReactionEvent) => void) => () => void;
   removeAllListeners: (channel: string) => void;
 
   // チャンネル管理
@@ -101,7 +116,7 @@ export interface ElectronAPI {
   // 絵文字管理
   getCustomEmojis: () => Promise<EmojiListResult>;
   saveEmojisData: (emojis: any) => Promise<{ success: boolean; error?: string }>;
-  onCustomEmojisData: (callback: (emojis: any) => void) => void;
+  onCustomEmojisData: (callback: (emojis: any) => void) => () => void;
   getEmojisLastUpdated: () => Promise<number | null>;
 
   // ローカルデータ管理

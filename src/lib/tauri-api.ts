@@ -3,7 +3,7 @@ import { listen, emit } from '@tauri-apps/api/event';
 import {
   SlackConfig, SlackConnectionResult, ConfigSaveResult, ConfigLoadResult,
   SlackMessage, ChannelListResult, ChannelActionResult, SlackChannel,
-  EmojiListResult
+  EmojiListResult, SlackReactionEvent
 } from './types';
 
 /**
@@ -36,6 +36,13 @@ export const tauriAPI = {
   onAddToTextQueue: (callback: (message: SlackMessage) => void): (() => void) => {
     let unlisten: (() => void) | null = null;
     listen<SlackMessage>('add-to-text-queue', (event) => {
+      callback(event.payload);
+    }).then(fn => { unlisten = fn; });
+    return () => { if (unlisten) unlisten(); };
+  },
+  onSlackReaction: (callback: (event: SlackReactionEvent) => void): (() => void) => {
+    let unlisten: (() => void) | null = null;
+    listen<SlackReactionEvent>('slack-reaction', (event) => {
       callback(event.payload);
     }).then(fn => { unlisten = fn; });
     return () => { if (unlisten) unlisten(); };

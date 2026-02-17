@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { SlackMessage } from "../lib/types"
+import { SlackMessage, ReactionData, SlackReactionEvent } from "../lib/types"
 import { getDisplaySettings, DisplaySettings } from "./DisplaySettings"
 import { emojiConverter } from "../lib/emoji-converter"
 
 interface DisplayMessage extends SlackMessage {
   id: string
+  reactions: ReactionData[]
 }
 
 export const DisplayWindow: React.FC = () => {
@@ -22,12 +23,61 @@ export const DisplayWindow: React.FC = () => {
       const displayMessage: DisplayMessage = {
         ...message,
         id: `msg-${Date.now()}-${Math.random()}`,
+        reactions: [],
       }
       setMessages((prev) => [displayMessage, ...prev.slice(0, 19)])
     }
 
+    const handleReaction = (event: SlackReactionEvent) => {
+      console.log("[Reaction] received:", event)
+      setMessages((prev) => {
+        console.log("[Reaction] messages:", prev.map(m => ({ channel: m.channel, ts: m.timestamp })))
+        const idx = prev.findIndex(
+          (m) => m.channel === event.channel && m.timestamp === event.message_ts,
+        )
+        console.log("[Reaction] matched idx:", idx)
+        if (idx === -1) return prev
+
+        const updated = [...prev]
+        const msg = { ...updated[idx], reactions: [...updated[idx].reactions] }
+
+        if (event.action === "added") {
+          const existing = msg.reactions.findIndex((r) => r.name === event.reaction)
+          if (existing >= 0) {
+            msg.reactions[existing] = {
+              ...msg.reactions[existing],
+              count: msg.reactions[existing].count + 1,
+              users: [...msg.reactions[existing].users, event.user],
+            }
+          } else {
+            msg.reactions.push({ name: event.reaction, count: 1, users: [event.user] })
+          }
+        } else if (event.action === "removed") {
+          const existing = msg.reactions.findIndex((r) => r.name === event.reaction)
+          if (existing >= 0) {
+            const newCount = msg.reactions[existing].count - 1
+            if (newCount <= 0) {
+              msg.reactions.splice(existing, 1)
+            } else {
+              msg.reactions[existing] = {
+                ...msg.reactions[existing],
+                count: newCount,
+                users: msg.reactions[existing].users.filter((u) => u !== event.user),
+              }
+            }
+          }
+        }
+
+        updated[idx] = msg
+        return updated
+      })
+    }
+
     const cleanupMessageListener =
       window.electronAPI.onDisplaySlackMessage(handleMessage)
+
+    const cleanupReactionListener =
+      window.electronAPI.onSlackReaction(handleReaction)
 
     const cleanupEmojiListener = window.electronAPI.onCustomEmojisData(
       (data: any) => {
@@ -49,6 +99,7 @@ export const DisplayWindow: React.FC = () => {
 
     return () => {
       cleanupMessageListener()
+      cleanupReactionListener()
       cleanupEmojiListener()
       cleanupSettingsListener()
       cleanupChannelListener()
@@ -165,6 +216,29 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
                   className="rounded max-h-48 max-w-full object-contain"
                   style={{ maxWidth: "360px" }}
                 />
+              ))}
+            </div>
+          )}
+          {message.reactions && message.reactions.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {message.reactions.map((r) => (
+                <span
+                  key={r.name}
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs"
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                    color: displaySettings.textColor,
+                  }}
+                >
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html: emojiConverter.convertEmojisToReact(`:${r.name}:`),
+                    }}
+                  />
+                  {r.count >= 2 && (
+                    <span className="ml-0.5 text-[11px]">{r.count}</span>
+                  )}
+                </span>
               ))}
             </div>
           )}

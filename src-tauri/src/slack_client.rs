@@ -253,6 +253,28 @@ struct SlackEvent {
     parent_user_id: Option<String>,
     #[serde(default)]
     files: Option<Vec<SlackFileObject>>,
+    #[serde(default)]
+    reaction: Option<String>,
+    #[serde(default)]
+    item: Option<SlackReactionItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SlackReactionItem {
+    #[serde(rename = "type")]
+    #[allow(dead_code)]
+    item_type: Option<String>,
+    channel: Option<String>,
+    ts: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SlackReactionEvent {
+    action: String,
+    reaction: String,
+    user: String,
+    channel: String,
+    message_ts: String,
 }
 
 // === SlackClient 本体 ===
@@ -992,6 +1014,7 @@ impl SlackClientState {
                 msg = read.next() => {
                     match msg {
                         Some(Ok(Message::Text(text))) => {
+                            eprintln!("[DEBUG] Socket Mode受信: {}", &text.chars().take(500).collect::<String>());
                             if let Ok(socket_msg) = serde_json::from_str::<SocketModeMessage>(&text) {
                                 // ACK を送信
                                 if let Some(ref envelope_id) = socket_msg.envelope_id {
@@ -1005,7 +1028,48 @@ impl SlackClientState {
                                 if socket_msg.msg_type.as_deref() == Some("events_api") {
                                     if let Some(payload) = &socket_msg.payload {
                                         if let Some(event) = &payload.event {
-                                            if event.event_type.as_deref() == Some("message") {
+                                            eprintln!("[INFO] イベントタイプ受信: {:?}", event.event_type);
+                                            if event.event_type.as_deref() == Some("reaction_added") || event.event_type.as_deref() == Some("reaction_removed") {
+                                                if let Some(item) = &event.item {
+                                                    if let Some(item_channel) = &item.channel {
+                                                        let is_watched = {
+                                                            inner.read().await.watched_channels.contains(item_channel)
+                                                        };
+
+                                                        eprintln!("[INFO] リアクション: channel={}, is_watched={}", item_channel, is_watched);
+                                                        if is_watched {
+                                                            let action = if event.event_type.as_deref() == Some("reaction_added") {
+                                                                "added"
+                                                            } else {
+                                                                "removed"
+                                                            };
+                                                            let reaction_name = event.reaction.clone().unwrap_or_default();
+                                                            let user_id = event.user.clone().unwrap_or_default();
+                                                            let user_info = Self::fetch_user_info_static(&bot_token, &user_id, &inner).await;
+                                                            let user_name = user_info.get("real_name")
+                                                                .or_else(|| user_info.get("name"))
+                                                                .and_then(|v| v.as_str())
+                                                                .unwrap_or("unknown")
+                                                                .to_string();
+                                                            let message_ts = item.ts.clone().unwrap_or_default();
+
+                                                            let reaction_event = SlackReactionEvent {
+                                                                action: action.to_string(),
+                                                                reaction: reaction_name.clone(),
+                                                                user: user_name,
+                                                                channel: item_channel.clone(),
+                                                                message_ts,
+                                                            };
+
+                                                            if let Err(e) = app_handle.emit("slack-reaction", &reaction_event) {
+                                                                eprintln!("[ERROR] リアクションイベント送信エラー: {}", e);
+                                                            } else {
+                                                                eprintln!("[INFO] リアクションイベントをフロントエンドに送信: {} :{}: ", action, reaction_name);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            } else if event.event_type.as_deref() == Some("message") {
                                                 if let Some(channel) = &event.channel {
                                                     let is_watched = {
                                                         inner.read().await.watched_channels.contains(channel)
