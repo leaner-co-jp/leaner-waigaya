@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { SlackConfig, SlackMessage } from "../lib/types"
+import { tauriAPI } from "../lib/tauri-api"
 import { ChannelManager } from "./ChannelManager"
 import { DisplaySettingsComponent, DisplaySettings } from "./DisplaySettings"
 import { EmojiManager } from "./EmojiManager"
@@ -31,11 +32,11 @@ export const SlackConnection: React.FC = () => {
         user: message.user,
         hasIcon: !!message.userIcon,
       })
-      window.electronAPI.displaySlackMessage(message)
+      tauriAPI.displaySlackMessage(message)
     })
 
     // SlackメッセージをTextQueueに追加する要求を受信
-    window.electronAPI.onAddToTextQueue((message: SlackMessage) => {
+    tauriAPI.onAddToTextQueue((message: SlackMessage) => {
       console.log(
         "📨 SlackメッセージをTextQueueに追加:",
         message.text?.substring(0, 50) || "テキストなし"
@@ -61,7 +62,7 @@ export const SlackConnection: React.FC = () => {
 
   const loadSavedConfig = async () => {
     try {
-      const result = await window.electronAPI.loadConfig()
+      const result = await tauriAPI.loadConfig()
       if (result.success && result.config) {
         setConfig(result.config)
         // 設定が読み込まれた場合は接続テストを実行
@@ -86,7 +87,7 @@ export const SlackConnection: React.FC = () => {
 
     try {
       console.log("🔍 フロントエンド: 接続テスト開始")
-      const result = await window.electronAPI.slackTestConnection(testConfig)
+      const result = await tauriAPI.slackTestConnection(testConfig)
       console.log("🔍 フロントエンド: 接続テスト結果:", result)
 
       if (result.success) {
@@ -98,14 +99,14 @@ export const SlackConnection: React.FC = () => {
 
         try {
           // 設定を保存
-          const saveResult = await window.electronAPI.saveConfig(testConfig)
+          const saveResult = await tauriAPI.saveConfig(testConfig)
           if (!saveResult.success) {
             setStatus(`❌ 設定保存失敗: ${saveResult.error}`)
             return
           }
 
           // 実際のSlack接続を自動実行
-          const connectResult = await window.electronAPI.slackConnect(
+          const connectResult = await tauriAPI.slackConnect(
             testConfig
           )
           if (connectResult.success) {
@@ -119,7 +120,7 @@ export const SlackConnection: React.FC = () => {
             // 🚀 現行システムと同じ動作: 接続成功後にユーザー一覧を自動取得
             console.log("📥 ユーザー一覧を自動取得開始...")
             try {
-              const usersResult = await window.electronAPI.slackReloadUsers()
+              const usersResult = await tauriAPI.slackReloadUsers()
               if (usersResult.success) {
                 console.log(
                   `✅ ユーザー一覧自動取得完了: ${usersResult.count}件`
@@ -175,14 +176,14 @@ export const SlackConnection: React.FC = () => {
 
     try {
       // 設定を保存
-      const saveResult = await window.electronAPI.saveConfig(config)
+      const saveResult = await tauriAPI.saveConfig(config)
       if (!saveResult.success) {
         setStatus(`❌ 設定保存失敗: ${saveResult.error}`)
         return
       }
 
       // 接続実行
-      const connectResult = await window.electronAPI.slackConnect(config)
+      const connectResult = await tauriAPI.slackConnect(config)
       if (connectResult.success) {
         setStatus("✅ Slack接続成功")
         setIsConnected(true)
@@ -194,7 +195,7 @@ export const SlackConnection: React.FC = () => {
         // 手動接続成功時もユーザー一覧を自動取得
         console.log("📥 手動接続: ユーザー一覧を自動取得開始...")
         try {
-          const usersResult = await window.electronAPI.slackReloadUsers()
+          const usersResult = await tauriAPI.slackReloadUsers()
           if (usersResult.success) {
             console.log(
               `✅ 手動接続: ユーザー一覧自動取得完了: ${usersResult.count}件`
@@ -232,7 +233,7 @@ export const SlackConnection: React.FC = () => {
       console.log("📁 ローカルデータ自動読み込み開始...")
 
       // 1. ユーザーデータをローカルから読み込み
-      const usersResult = await window.electronAPI.setLocalUsersData()
+      const usersResult = await tauriAPI.setLocalUsersData()
       if (usersResult.success) {
         console.log("📁 ローカルユーザーデータをSlackWatcherに設定しました")
       } else {
@@ -240,7 +241,7 @@ export const SlackConnection: React.FC = () => {
       }
 
       // 2. カスタム絵文字データをローカルから読み込み
-      const emojisResult = await window.electronAPI.setLocalEmojisData()
+      const emojisResult = await tauriAPI.setLocalEmojisData()
       if (emojisResult.success) {
         console.log(
           "📁 ローカルカスタム絵文字データをSlackWatcherに設定しました"
@@ -263,13 +264,13 @@ export const SlackConnection: React.FC = () => {
     const ONE_WEEK_SECONDS = 7 * 24 * 60 * 60
 
     try {
-      const lastUpdated = await window.electronAPI.getEmojisLastUpdated()
+      const lastUpdated = await tauriAPI.getEmojisLastUpdated()
       const nowSeconds = Math.floor(Date.now() / 1000)
 
       if (lastUpdated === null || nowSeconds - lastUpdated >= ONE_WEEK_SECONDS) {
         const reason = lastUpdated === null ? "データなし" : "1週間以上経過"
         console.log(`📙 カスタム絵文字自動取得開始（${reason}）`)
-        const result = await window.electronAPI.getCustomEmojis()
+        const result = await tauriAPI.getCustomEmojis()
         if (result.success && result.emojis) {
           console.log(`📙 カスタム絵文字自動取得完了: ${result.emojis.length}個`)
         } else {

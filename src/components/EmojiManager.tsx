@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { CustomEmoji } from "../lib/types"
+import { tauriAPI } from "../lib/tauri-api"
 
 interface EmojiManagerProps {
   isOpen: boolean
@@ -58,7 +59,7 @@ export const EmojiManager: React.FC<EmojiManagerProps> = ({
     updateEmojiStatus("カスタム絵文字取得中...", "warning")
 
     try {
-      const result = await window.electronAPI.getCustomEmojis()
+      const result = await tauriAPI.getCustomEmojis()
       if (result.success && result.emojis) {
         setEmojis(result.emojis)
         updateEmojiStatus(`取得完了 (${result.emojis.length}個)`, "connected")
@@ -66,7 +67,7 @@ export const EmojiManager: React.FC<EmojiManagerProps> = ({
 
         // ローカルファイルに保存
         try {
-          const saveResult = await window.electronAPI.saveEmojisData(
+          const saveResult = await tauriAPI.saveEmojisData(
             result.emojis.reduce((acc, emoji) => {
               acc[emoji.name] = emoji.url
               return acc
@@ -106,7 +107,7 @@ export const EmojiManager: React.FC<EmojiManagerProps> = ({
   }, [isOpen, isConnected])
 
   useEffect(() => {
-    const cleanup = window.electronAPI.onCustomEmojisData((data) => {
+    const cleanup = tauriAPI.onCustomEmojisData((data) => {
       console.log("🔄 EmojiManager: custom-emojis-data受信")
       if (typeof data === "object" && data !== null) {
         const emojiArray = Object.entries(data).map(([name, url]) => ({

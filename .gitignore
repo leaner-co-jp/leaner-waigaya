@@ -68,6 +68,3 @@ dist/
 # Tauri
 src-tauri/target/
 
-# Electron (legacy)
-out/
-.webpack/

@@ -8,8 +8,7 @@ import {
 
 /**
  * Tauri APIラッパー
- * window.electronAPI と同じインターフェースを提供し、
- * 内部では Tauri の invoke() / listen() を使用する
+ * Tauri の invoke() / listen() をラップして統一的なインターフェースを提供する
  */
 export const tauriAPI = {
   // 接続管理
@@ -47,10 +46,6 @@ export const tauriAPI = {
     }).then(fn => { unlisten = fn; });
     return () => { if (unlisten) unlisten(); };
   },
-  removeAllListeners: (_channel: string) => {
-    // Tauriではlisten()の戻り値でunlistenするため、この関数は互換性のために残す
-  },
-
   // チャンネル管理
   slackGetChannels: (): Promise<ChannelListResult> =>
     invoke('slack_get_channels'),
@@ -84,10 +79,6 @@ export const tauriAPI = {
     }).then(fn => { unlisten = fn; });
     return () => { if (unlisten) unlisten(); };
   },
-  clearUserDataUpdated: () => {
-    // Tauriでは個別のunlistenで管理するため、この関数は互換性のために残す
-  },
-
   // 絵文字管理
   getCustomEmojis: (): Promise<EmojiListResult> =>
     invoke('slack_get_custom_emojis'),
@@ -122,10 +113,3 @@ export const tauriAPI = {
     return () => { if (unlisten) unlisten(); };
   },
 };
-
-// window.electronAPI としてグローバルに公開
-// 既存のコンポーネントが window.electronAPI を参照しているため、
-// Tauri環境ではこのAPIをwindow.electronAPIとして設定する
-if (typeof window !== 'undefined') {
-  (window as any).electronAPI = tauriAPI;
-}

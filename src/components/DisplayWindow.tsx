@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { SlackMessage, ReactionData, SlackReactionEvent } from "../lib/types"
+import { tauriAPI } from "../lib/tauri-api"
 import { getDisplaySettings, DisplaySettings } from "./DisplaySettings"
 import { emojiConverter } from "../lib/emoji-converter"
 
@@ -14,10 +15,8 @@ export const DisplayWindow: React.FC = () => {
   const [channelName, setChannelName] = useState("waigaya")
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.electronAPI) return
-
     // 初期チャンネル名を取得
-    window.electronAPI.getCurrentChannelName().then(setChannelName)
+    tauriAPI.getCurrentChannelName().then(setChannelName)
 
     const handleMessage = (message: SlackMessage) => {
       const displayMessage: DisplayMessage = {
@@ -71,24 +70,24 @@ export const DisplayWindow: React.FC = () => {
     }
 
     const cleanupMessageListener =
-      window.electronAPI.onDisplaySlackMessage(handleMessage)
+      tauriAPI.onDisplaySlackMessage(handleMessage)
 
     const cleanupReactionListener =
-      window.electronAPI.onSlackReaction(handleReaction)
+      tauriAPI.onSlackReaction(handleReaction)
 
-    const cleanupEmojiListener = window.electronAPI.onCustomEmojisData(
+    const cleanupEmojiListener = tauriAPI.onCustomEmojisData(
       (data: any) => {
         emojiConverter.updateCustomEmojis(data)
       },
     )
 
-    const cleanupSettingsListener = window.electronAPI.onDisplaySettingsUpdate(
+    const cleanupSettingsListener = tauriAPI.onDisplaySettingsUpdate(
       () => {
         setMessages((prev) => [...prev])
       },
     )
 
-    const cleanupChannelListener = window.electronAPI.onChannelUpdated(
+    const cleanupChannelListener = tauriAPI.onChannelUpdated(
       (name) => {
         setChannelName(name)
       },
