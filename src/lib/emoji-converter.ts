@@ -1,5 +1,4 @@
 import { CustomEmoji } from './types';
-import { tauriAPI } from './tauri-api';
 import { gemoji } from 'gemoji';
 
 export interface EmojiMap {
@@ -26,32 +25,6 @@ export class EmojiConverter {
   constructor() {
     this.standardEmojis = STANDARD_EMOJI_MAP;
     this.customEmojis = {};
-  }
-
-  /**
-   * カスタム絵文字を読み込み（現行システムと同等）
-   */
-  async loadCustomEmojis(): Promise<void> {
-    try {
-      const result = await tauriAPI.getCustomEmojis();
-      if (result.success && result.emojis) {
-        this.customEmojis = {};
-        result.emojis.forEach(emoji => {
-          this.customEmojis[emoji.name] = emoji.url;
-        });
-        this.isLoaded = true;
-        console.log(`📙 カスタム絵文字読み込み完了: ${Object.keys(this.customEmojis).length}個`);
-      } else {
-        console.warn('⚠️ カスタム絵文字の読み込みに失敗:', result.error);
-      }
-
-      // IPCでカスタム絵文字データを受信するリスナーも設定
-      tauriAPI.onCustomEmojisData((data: CustomEmojiMap) => {
-        this.updateCustomEmojis(data);
-      });
-    } catch (error) {
-      console.error('❌ カスタム絵文字読み込みエラー:', error);
-    }
   }
 
   /**

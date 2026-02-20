@@ -81,6 +81,13 @@ export const DisplayWindow: React.FC = () => {
       },
     )
 
+    // ローカル保存済みのカスタム絵文字データを直接取得（イベント取りこぼし対策）
+    tauriAPI.setLocalEmojisData().then(result => {
+      if (result.success && result.data) {
+        emojiConverter.updateCustomEmojis(result.data)
+      }
+    }).catch(() => {})
+
     const cleanupSettingsListener = tauriAPI.onDisplaySettingsUpdate(
       () => {
         setMessages((prev) => [...prev])
