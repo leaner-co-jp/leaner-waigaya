@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react"
+import { tauriAPI } from "../lib/tauri-api"
 
 interface UserManagerProps {
   isConnected: boolean
@@ -20,29 +21,26 @@ export const UserManager: React.FC<UserManagerProps> = ({ isConnected }) => {
       checkCacheStatus()
 
       // ユーザーデータ更新イベントのリスナーを登録
-      window.electronAPI.onUserDataUpdated((count: number) => {
+      const cleanup = tauriAPI.onUserDataUpdated((count: number) => {
         console.log(`[EVENT] user-data-updated イベント受信: ${count}件`)
         setUsersCount(count)
         updateUsersStatus(`キャッシュあり (${count}件)`, "connected")
       })
+
+      return () => {
+        cleanup()
+      }
     } else {
       // 切断時は未取得状態にリセット
       updateUsersStatus("未接続", "default")
       setUsersCount(0)
-    }
-
-    // コンポーネントのクリーンアップ
-    return () => {
-      if (window.electronAPI.clearUserDataUpdated) {
-        window.electronAPI.clearUserDataUpdated()
-      }
     }
   }, [isConnected])
 
   // キャッシュ状態を確認
   const checkCacheStatus = async () => {
     try {
-      const result = await window.electronAPI.slackGetUsersCount()
+      const result = await tauriAPI.slackGetUsersCount()
       if (result.success && result.count > 0) {
         setUsersCount(result.count)
         updateUsersStatus(`キャッシュあり (${result.count}件)`, "connected")
@@ -66,7 +64,7 @@ export const UserManager: React.FC<UserManagerProps> = ({ isConnected }) => {
 
     try {
       console.log("📥 ユーザー一覧リロード開始...")
-      const result = await window.electronAPI.slackReloadUsers()
+      const result = await tauriAPI.slackReloadUsers()
 
       // UI更新は onUserDataUpdated イベント経由で行われるため、ここでは成功/失敗の表示のみ
       if (result.success) {

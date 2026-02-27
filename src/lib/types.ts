@@ -83,8 +83,8 @@ export interface SlackReactionEvent {
   message_ts: string;
 }
 
-// IPC通信用の型定義
-export interface ElectronAPI {
+// Tauri API型定義
+export interface TauriAPI {
   // 接続管理
   slackConnect: (config: SlackConfig) => Promise<SlackConnectionResult>;
   slackTestConnection: (config: SlackConfig) => Promise<SlackConnectionResult>;
@@ -96,8 +96,6 @@ export interface ElectronAPI {
   onDisplaySlackMessage: (callback: (message: SlackMessage) => void) => () => void;
   onAddToTextQueue: (callback: (message: SlackMessage) => void) => () => void;
   onSlackReaction: (callback: (event: SlackReactionEvent) => void) => () => void;
-  removeAllListeners: (channel: string) => void;
-
   // チャンネル管理
   slackGetChannels: () => Promise<ChannelListResult>;
   addWatchChannel: (channelId: string) => Promise<ChannelActionResult>;
@@ -111,7 +109,6 @@ export interface ElectronAPI {
   slackReloadUsers: () => Promise<{ success: boolean, count?: number, error?: string }>;
   slackGetUsersCount: () => Promise<{ success: boolean, count: number, error?: string }>;
   onUserDataUpdated: (callback: (count: number) => void) => () => void;
-  clearUserDataUpdated: () => void;
 
   // 絵文字管理
   getCustomEmojis: () => Promise<EmojiListResult>;
@@ -126,10 +123,4 @@ export interface ElectronAPI {
   // 表示設定
   displaySettingsUpdate: (settings: any) => void;
   onDisplaySettingsUpdate: (callback: () => void) => () => void;
-}
-
-declare global {
-  interface Window {
-    electronAPI: ElectronAPI;
-  }
 }

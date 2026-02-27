@@ -1,4 +1,5 @@
 import { CustomEmoji } from './types';
+import { gemoji } from 'gemoji';
 
 export interface EmojiMap {
   [key: string]: string;
@@ -8,121 +9,13 @@ export interface CustomEmojiMap {
   [key: string]: string; // URL
 }
 
-// 標準Slack絵文字マップ（現行 display.js:51-131行から移植）
-const SLACK_EMOJI_MAP: EmojiMap = {
-  // 基本的な感情表現
-  'smile': '😊',
-  'laughing': '😆',
-  'blush': '😊',
-  'smiley': '😃',
-  'relaxed': '☺️',
-  'smirk': '😏',
-  'heart_eyes': '😍',
-  'kissing_heart': '😘',
-  'kissing_closed_eyes': '😚',
-  'flushed': '😳',
-  'relieved': '😌',
-  'satisfied': '😆',
-  'grin': '😁',
-  'wink': '😉',
-  'stuck_out_tongue_winking_eye': '😜',
-  'stuck_out_tongue_closed_eyes': '😝',
-  'grinning': '😀',
-  'kissing': '😗',
-  'kissing_smiling_eyes': '😙',
-  'stuck_out_tongue': '😛',
-  'sleeping': '😴',
-  'worried': '😟',
-  'frowning': '😦',
-  'anguished': '😧',
-  'open_mouth': '😮',
-  'grimacing': '😬',
-  'confused': '😕',
-  'hushed': '😯',
-  'expressionless': '😑',
-  'unamused': '😒',
-  'sweat_smile': '😅',
-  'sweat': '😓',
-  'disappointed_relieved': '😥',
-  'weary': '😩',
-  'pensive': '😔',
-  'disappointed': '😞',
-  'confounded': '😖',
-  'fearful': '😨',
-  'cold_sweat': '😰',
-  'persevere': '😣',
-  'cry': '😢',
-  'sob': '😭',
-  'joy': '😂',
-  'astonished': '😲',
-  'scream': '😱',
-  'tired_face': '😫',
-  'angry': '😠',
-  'rage': '😡',
-  'triumph': '😤',
-  'sleepy': '😪',
-  'yum': '😋',
-  'mask': '😷',
-  'sunglasses': '😎',
-  'dizzy_face': '😵',
-  'imp': '👿',
-  'smiling_imp': '😈',
-  'neutral_face': '😐',
-  'no_mouth': '😶',
-  'innocent': '😇',
-  'alien': '👽',
-
-  // ジェスチャー・アクション
-  '+1': '👍',
-  'thumbsup': '👍',
-  '-1': '👎',
-  'thumbsdown': '👎',
-  'ok_hand': '👌',
-  'punch': '👊',
-  'fist': '✊',
-  'v': '✌️',
-  'wave': '👋',
-  'hand': '✋',
-  'raised_hand': '✋',
-  'open_hands': '👐',
-  'point_up': '☝️',
-  'point_down': '👇',
-  'point_left': '👈',
-  'point_right': '👉',
-  'raised_hands': '🙌',
-  'pray': '🙏',
-  'clap': '👏',
-  'muscle': '💪',
-
-  // 心とシンボル
-  'heart': '❤️',
-  'broken_heart': '💔',
-  'two_hearts': '💕',
-  'sparkling_heart': '💖',
-  'heartpulse': '💗',
-  'blue_heart': '💙',
-  'green_heart': '💚',
-  'yellow_heart': '💛',
-  'purple_heart': '💜',
-  'gift_heart': '💝',
-  'revolving_hearts': '💞',
-  'heart_decoration': '💟',
-  'diamond_shape_with_a_dot_inside': '💠',
-  'bulb': '💡',
-  'anger': '💢',
-  'bomb': '💣',
-  'zzz': '💤',
-  'boom': '💥',
-  'sweat_drops': '💦',
-  'droplet': '💧',
-  'dash': '💨',
-  'hankey': '💩',
-  'poop': '💩',
-  'shit': '💩',
-  'fire': '🔥',
-  'star': '⭐',
-  'star2': '🌟'
-};
+// gemoji（GitHub管理）から標準絵文字マップを構築
+const STANDARD_EMOJI_MAP: EmojiMap = {};
+for (const entry of gemoji) {
+  for (const name of entry.names) {
+    STANDARD_EMOJI_MAP[name] = entry.emoji;
+  }
+}
 
 export class EmojiConverter {
   private standardEmojis: EmojiMap;
@@ -130,39 +23,8 @@ export class EmojiConverter {
   private isLoaded: boolean = false;
 
   constructor() {
-    this.standardEmojis = SLACK_EMOJI_MAP;
+    this.standardEmojis = STANDARD_EMOJI_MAP;
     this.customEmojis = {};
-  }
-
-  /**
-   * カスタム絵文字を読み込み（現行システムと同等）
-   */
-  async loadCustomEmojis(): Promise<void> {
-    try {
-      if (typeof window !== 'undefined' && window.electronAPI) {
-        const result = await window.electronAPI.getCustomEmojis();
-        if (result.success && result.emojis) {
-          // CustomEmoji[]をCustomEmojiMapに変換
-          this.customEmojis = {};
-          result.emojis.forEach(emoji => {
-            this.customEmojis[emoji.name] = emoji.url;
-          });
-          this.isLoaded = true;
-          console.log(`📙 カスタム絵文字読み込み完了: ${Object.keys(this.customEmojis).length}個`);
-        } else {
-          console.warn('⚠️ カスタム絵文字の読み込みに失敗:', result.error);
-        }
-
-        // IPCでカスタム絵文字データを受信するリスナーも設定
-        if (window.electronAPI.onCustomEmojisData) {
-          window.electronAPI.onCustomEmojisData((data: CustomEmojiMap) => {
-            this.updateCustomEmojis(data);
-          });
-        }
-      }
-    } catch (error) {
-      console.error('❌ カスタム絵文字読み込みエラー:', error);
-    }
   }
 
   /**

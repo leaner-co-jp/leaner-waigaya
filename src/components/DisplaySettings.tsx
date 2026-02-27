@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { tauriAPI } from '../lib/tauri-api';
 
 export interface DisplaySettings {
   fontSize: number;        // フォントサイズ（現行：20px）
@@ -52,10 +53,8 @@ export const DisplaySettingsComponent: React.FC<DisplaySettingsProps> = ({
     // 親コンポーネントに通知
     onSettingsChange(newSettings);
     
-    // DisplayWindowにリアルタイム反映（現行システムと同じ動作）
-    if (typeof window !== 'undefined' && window.electronAPI?.displaySettingsUpdate) {
-      window.electronAPI.displaySettingsUpdate(newSettings);
-    }
+    // DisplayWindowにリアルタイム反映
+    tauriAPI.displaySettingsUpdate(newSettings);
   };
 
   // デフォルト設定にリセット

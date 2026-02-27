@@ -436,6 +436,7 @@ impl SlackClientState {
         // Socket Mode 接続を非同期で開始
         let inner_clone = self.inner.clone();
         let app_handle_clone = app_handle.clone();
+        let app_handle_for_error = app_handle.clone();
         let app_token_clone = app_token.clone();
         let bot_token_clone = bot_token.clone();
 
@@ -459,6 +460,7 @@ impl SlackClientState {
                 cancel_rx,
             ).await {
                 log::warn!("Socket Mode接続失敗（基本機能は利用可能）: {}", e);
+                let _ = app_handle_for_error.emit("socket-mode-error", e.to_string());
             }
         });
 
@@ -1000,6 +1002,18 @@ impl SlackClientState {
             .map_err(|e| format!("WebSocket接続エラー: {}", e))?;
 
         log::info!("Socket Mode WebSocket接続成功");
+        let _ = app_handle.emit("socket-mode-connected", ());
+
+        // 監視チャンネル数をデバッグ情報として通知
+        let watched_count = inner.read().await.watched_channels.len();
+        let _ = app_handle.emit(
+            "socket-mode-debug",
+            format!(
+                "監視チャンネル数: {}件{}",
+                watched_count,
+                if watched_count == 0 { " ← チャンネルを追加してください" } else { "" }
+            ),
+        );
 
         let (mut write, mut read) = ws_stream.split();
 
@@ -1023,10 +1037,25 @@ impl SlackClientState {
                                     }
                                 }
 
+                                // 診断: 受信したSocket Modeメッセージタイプをログ
+                                let msg_type_str = socket_msg.msg_type.as_deref().unwrap_or("unknown");
+                                log::info!("Socket Mode受信: type={}", msg_type_str);
+                                // hello は socket-mode-connected で通知済みのため emit 不要
+                                if msg_type_str != "hello" {
+                                    let _ = app_handle.emit("socket-mode-debug", format!("受信: type={}", msg_type_str));
+                                }
+
                                 // events_api のメッセージイベントのみ処理
                                 if socket_msg.msg_type.as_deref() == Some("events_api") {
                                     if let Some(payload) = &socket_msg.payload {
                                         if let Some(event) = &payload.event {
+                                            let event_type_str = event.event_type.as_deref().unwrap_or("unknown");
+                                            let channel_str = event.channel.as_deref().unwrap_or("none");
+                                            let watched = if let Some(ch) = &event.channel {
+                                                inner.read().await.watched_channels.contains(ch)
+                                            } else { false };
+                                            log::info!("events_api: event_type={} channel={} is_watched={}", event_type_str, channel_str, watched);
+                                            let _ = app_handle.emit("socket-mode-debug", format!("events_api: type={} ch={} watched={}", event_type_str, channel_str, watched));
                                             if event.event_type.as_deref() == Some("reaction_added") || event.event_type.as_deref() == Some("reaction_removed") {
                                                 if let Some(item) = &event.item {
                                                     if let Some(item_channel) = &item.channel {

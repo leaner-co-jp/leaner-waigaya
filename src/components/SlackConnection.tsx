@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from "react"
-import { SlackConfig, SlackMessage } from "../lib/types"
+import { listen } from "@tauri-apps/api/event"
+import { SlackConfig, SlackMessage, SlackReactionEvent } from "../lib/types"
+import { tauriAPI } from "../lib/tauri-api"
 import { ChannelManager } from "./ChannelManager"
 import { DisplaySettingsComponent, DisplaySettings } from "./DisplaySettings"
 import { EmojiManager } from "./EmojiManager"
 import { UserManager } from "./UserManager"
+import { LogViewer } from "./LogViewer"
+import { useLogger } from "../hooks/useLogger"
 import { textQueue } from "../lib/TextQueue"
 
 export const SlackConnection: React.FC = () => {
@@ -18,9 +22,13 @@ export const SlackConnection: React.FC = () => {
   const [showDisplaySettings, setShowDisplaySettings] = useState(false)
   const [showEmojiManager, setShowEmojiManager] = useState(false)
   const [showChannelManager, setShowChannelManager] = useState(false)
+  const { logs, addLog, clearLogs } = useLogger()
 
   // 初期化時に保存された設定を読み込み
   useEffect(() => {
+    let unlistenAddToQueue: (() => void) | null = null
+    let cancelled = false
+
     loadSavedConfig()
 
     // TextQueueのコールバックを設定
@@ -31,11 +39,13 @@ export const SlackConnection: React.FC = () => {
         user: message.user,
         hasIcon: !!message.userIcon,
       })
-      window.electronAPI.displaySlackMessage(message)
+      addLog("info", "メッセージ", `表示: ${message.text?.substring(0, 40) ?? "(テキストなし)"}`)
+      tauriAPI.displaySlackMessage(message)
     })
 
-    // SlackメッセージをTextQueueに追加する要求を受信
-    window.electronAPI.onAddToTextQueue((message: SlackMessage) => {
+    // SlackメッセージをTextQueueに追加する要求を受信（直接listenでReact Strict Mode対応）
+    listen<SlackMessage>('add-to-text-queue', (event) => {
+      const message = event.payload
       console.log(
         "📨 SlackメッセージをTextQueueに追加:",
         message.text?.substring(0, 50) || "テキストなし"
@@ -50,18 +60,62 @@ export const SlackConnection: React.FC = () => {
       const cleanMessage = { ...message }
       delete cleanMessage._queueAction
       console.log("📨 TextQueue追加前のメッセージ:", cleanMessage)
+      addLog("info", "メッセージ", `受信: ${message.text?.substring(0, 40) ?? "(テキストなし)"}`)
       textQueue.addSlackMessage(cleanMessage)
+    }).then((fn) => {
+      if (cancelled) { fn(); return }
+      unlistenAddToQueue = fn
+      addLog("info", "メッセージ", "✅ add-to-text-queue リスナー登録完了")
+    }).catch((err) => {
+      addLog("error", "メッセージ", `❌ add-to-text-queue listen失敗: ${err}`)
     })
 
     return () => {
-      // クリーンアップ
+      cancelled = true
+      if (unlistenAddToQueue) unlistenAddToQueue()
       textQueue.clear()
     }
-  }, [])
+  }, [addLog])
+
+  // ログ専用のTauriイベントリスナー（直接listenでReact Strict Mode対応）
+  useEffect(() => {
+    let unlistenFns: (() => void)[] = []
+    let cancelled = false
+
+    Promise.all([
+      listen<number>('user-data-updated', (e) =>
+        addLog("info", "ユーザー", `ユーザーデータ更新: ${e.payload}件`)),
+      listen<string>('channel-updated', (e) =>
+        addLog("info", "チャンネル", `チャンネル変更: ${e.payload}`)),
+      listen('display-settings-update', () =>
+        addLog("info", "設定", "表示設定が変更されました")),
+      listen('custom-emojis-data', () =>
+        addLog("info", "絵文字", "カスタム絵文字データ更新")),
+      listen<SlackReactionEvent>('slack-reaction', (e) =>
+        addLog("info", "リアクション", `:${e.payload.reaction}: by ${e.payload.user}`)),
+      listen('socket-mode-connected', () =>
+        addLog("info", "接続", "✅ Socket Mode WebSocket接続成功")),
+      listen<string>('socket-mode-error', (e) =>
+        addLog("error", "接続", `❌ Socket Mode失敗: ${e.payload}`)),
+      listen<string>('socket-mode-debug', (e) =>
+        addLog("info", "接続", `[WS] ${e.payload}`)),
+    ]).then((fns) => {
+      if (cancelled) { fns.forEach((fn) => fn()); return }
+      unlistenFns = fns
+      addLog("info", "接続", "✅ Tauriイベントリスナー登録完了")
+    }).catch((err) => {
+      addLog("error", "接続", `❌ Tauriイベントリスナー登録失敗: ${err}`)
+    })
+
+    return () => {
+      cancelled = true
+      unlistenFns.forEach((fn) => fn())
+    }
+  }, [addLog])
 
   const loadSavedConfig = async () => {
     try {
-      const result = await window.electronAPI.loadConfig()
+      const result = await tauriAPI.loadConfig()
       if (result.success && result.config) {
         setConfig(result.config)
         // 設定が読み込まれた場合は接続テストを実行
@@ -86,11 +140,12 @@ export const SlackConnection: React.FC = () => {
 
     try {
       console.log("🔍 フロントエンド: 接続テスト開始")
-      const result = await window.electronAPI.slackTestConnection(testConfig)
+      const result = await tauriAPI.slackTestConnection(testConfig)
       console.log("🔍 フロントエンド: 接続テスト結果:", result)
 
       if (result.success) {
         setStatus("✅ 接続テスト成功")
+        addLog("info", "接続", "接続テスト成功")
 
         // 🚀 現行システムと同じ動作: 接続テスト成功後、自動的に実際の接続を実行
         console.log("🚀 保存されたトークンで自動接続を開始します")
@@ -98,19 +153,21 @@ export const SlackConnection: React.FC = () => {
 
         try {
           // 設定を保存
-          const saveResult = await window.electronAPI.saveConfig(testConfig)
+          const saveResult = await tauriAPI.saveConfig(testConfig)
           if (!saveResult.success) {
             setStatus(`❌ 設定保存失敗: ${saveResult.error}`)
+            addLog("error", "接続", `設定保存失敗: ${saveResult.error}`)
             return
           }
 
           // 実際のSlack接続を自動実行
-          const connectResult = await window.electronAPI.slackConnect(
+          const connectResult = await tauriAPI.slackConnect(
             testConfig
           )
           if (connectResult.success) {
             setStatus("✅ Slack自動接続成功")
             setIsConnected(true)
+            addLog("info", "接続", "Slack自動接続成功")
             console.log("🎯 現行システムと同じ動作: 自動接続完了")
 
             // 🚀 現行システムと同じ動作: 接続成功後にローカルデータを自動読み込み
@@ -119,30 +176,36 @@ export const SlackConnection: React.FC = () => {
             // 🚀 現行システムと同じ動作: 接続成功後にユーザー一覧を自動取得
             console.log("📥 ユーザー一覧を自動取得開始...")
             try {
-              const usersResult = await window.electronAPI.slackReloadUsers()
+              const usersResult = await tauriAPI.slackReloadUsers()
               if (usersResult.success) {
                 console.log(
                   `✅ ユーザー一覧自動取得完了: ${usersResult.count}件`
                 )
+                addLog("info", "ユーザー", `ユーザー一覧取得完了: ${usersResult.count}件`)
               } else {
                 console.warn("⚠️ ユーザー一覧自動取得失敗:", usersResult.error)
+                addLog("warn", "ユーザー", `ユーザー一覧取得失敗: ${usersResult.error}`)
               }
             } catch (error) {
               console.error("❌ ユーザー一覧自動取得エラー:", error)
+              addLog("error", "ユーザー", `ユーザー一覧取得エラー: ${error}`)
             }
           } else {
             setStatus(
               `❌ Slack自動接続失敗: ${connectResult.error || "不明なエラー"}`
             )
             setIsConnected(false)
+            addLog("error", "接続", `Slack自動接続失敗: ${connectResult.error ?? "不明なエラー"}`)
           }
         } catch (connectError) {
           setStatus(`❌ 自動接続エラー: ${connectError}`)
           setIsConnected(false)
+          addLog("error", "接続", `自動接続エラー: ${connectError}`)
         }
       } else {
         setStatus(`❌ 接続失敗: ${result.error || "不明なエラー"}`)
         setIsConnected(false)
+        addLog("error", "接続", `接続失敗: ${result.error ?? "不明なエラー"}`)
 
         // Socket Mode関連のエラーの場合、詳細な説明を表示
         if (result.error?.includes("Socket Mode")) {
@@ -175,18 +238,19 @@ export const SlackConnection: React.FC = () => {
 
     try {
       // 設定を保存
-      const saveResult = await window.electronAPI.saveConfig(config)
+      const saveResult = await tauriAPI.saveConfig(config)
       if (!saveResult.success) {
         setStatus(`❌ 設定保存失敗: ${saveResult.error}`)
         return
       }
 
       // 接続実行
-      const connectResult = await window.electronAPI.slackConnect(config)
+      const connectResult = await tauriAPI.slackConnect(config)
       if (connectResult.success) {
         setStatus("✅ Slack接続成功")
         setIsConnected(true)
         setShowConnectionDialog(false)
+        addLog("info", "接続", "Slack接続成功（手動）")
 
         // 手動接続成功時もローカルデータを自動読み込み
         await loadLocalData()
@@ -194,27 +258,32 @@ export const SlackConnection: React.FC = () => {
         // 手動接続成功時もユーザー一覧を自動取得
         console.log("📥 手動接続: ユーザー一覧を自動取得開始...")
         try {
-          const usersResult = await window.electronAPI.slackReloadUsers()
+          const usersResult = await tauriAPI.slackReloadUsers()
           if (usersResult.success) {
             console.log(
               `✅ 手動接続: ユーザー一覧自動取得完了: ${usersResult.count}件`
             )
+            addLog("info", "ユーザー", `ユーザー一覧取得完了: ${usersResult.count}件`)
           } else {
             console.warn(
               "⚠️ 手動接続: ユーザー一覧自動取得失敗:",
               usersResult.error
             )
+            addLog("warn", "ユーザー", `ユーザー一覧取得失敗: ${usersResult.error}`)
           }
         } catch (error) {
           console.error("❌ 手動接続: ユーザー一覧自動取得エラー:", error)
+          addLog("error", "ユーザー", `ユーザー一覧取得エラー: ${error}`)
         }
       } else {
         setStatus(`❌ Slack接続失敗: ${connectResult.error || "不明なエラー"}`)
         setIsConnected(false)
+        addLog("error", "接続", `Slack接続失敗: ${connectResult.error ?? "不明なエラー"}`)
       }
     } catch (error) {
       setStatus(`❌ 接続エラー: ${error}`)
       setIsConnected(false)
+      addLog("error", "接続", `接続エラー: ${error}`)
     } finally {
       setIsLoading(false)
     }
@@ -232,21 +301,25 @@ export const SlackConnection: React.FC = () => {
       console.log("📁 ローカルデータ自動読み込み開始...")
 
       // 1. ユーザーデータをローカルから読み込み
-      const usersResult = await window.electronAPI.setLocalUsersData()
+      const usersResult = await tauriAPI.setLocalUsersData()
       if (usersResult.success) {
         console.log("📁 ローカルユーザーデータをSlackWatcherに設定しました")
+        addLog("info", "ユーザー", "ローカルユーザーデータを読み込みました")
       } else {
         console.log("📁 有効なローカルユーザーデータが見つかりません")
+        addLog("warn", "ユーザー", "ローカルユーザーデータが見つかりません")
       }
 
       // 2. カスタム絵文字データをローカルから読み込み
-      const emojisResult = await window.electronAPI.setLocalEmojisData()
+      const emojisResult = await tauriAPI.setLocalEmojisData()
       if (emojisResult.success) {
         console.log(
           "📁 ローカルカスタム絵文字データをSlackWatcherに設定しました"
         )
+        addLog("info", "絵文字", "ローカル絵文字データを読み込みました")
       } else {
         console.log("📁 有効なローカルカスタム絵文字データが見つかりません")
+        addLog("warn", "絵文字", "ローカル絵文字データが見つかりません")
       }
 
       console.log("✅ ローカルデータ自動読み込み完了")
@@ -263,21 +336,25 @@ export const SlackConnection: React.FC = () => {
     const ONE_WEEK_SECONDS = 7 * 24 * 60 * 60
 
     try {
-      const lastUpdated = await window.electronAPI.getEmojisLastUpdated()
+      const lastUpdated = await tauriAPI.getEmojisLastUpdated()
       const nowSeconds = Math.floor(Date.now() / 1000)
 
       if (lastUpdated === null || nowSeconds - lastUpdated >= ONE_WEEK_SECONDS) {
         const reason = lastUpdated === null ? "データなし" : "1週間以上経過"
         console.log(`📙 カスタム絵文字自動取得開始（${reason}）`)
-        const result = await window.electronAPI.getCustomEmojis()
+        addLog("info", "絵文字", `カスタム絵文字自動取得開始（${reason}）`)
+        const result = await tauriAPI.getCustomEmojis()
         if (result.success && result.emojis) {
           console.log(`📙 カスタム絵文字自動取得完了: ${result.emojis.length}個`)
+          addLog("info", "絵文字", `カスタム絵文字取得完了: ${result.emojis.length}個`)
         } else {
           console.warn("⚠️ カスタム絵文字自動取得失敗:", result.error)
+          addLog("warn", "絵文字", `カスタム絵文字取得失敗: ${result.error}`)
         }
       } else {
         const daysAgo = Math.floor((nowSeconds - lastUpdated) / 86400)
         console.log(`📙 カスタム絵文字は最新です（${daysAgo}日前に取得済み）`)
+        addLog("info", "絵文字", `カスタム絵文字は最新（${daysAgo}日前に取得済み）`)
       }
     } catch (error) {
       console.error("❌ カスタム絵文字更新チェックエラー:", error)
@@ -400,6 +477,13 @@ export const SlackConnection: React.FC = () => {
           <p className="text-sm text-gray-600 mt-2">
             ランダムなサンプルメッセージを生成してテスト表示します。表示設定でフォント・色・透明度を調整できます。
           </p>
+        </div>
+      </div>
+
+      {/* ログ表示エリア */}
+      <div className="mb-5">
+        <div className="bg-white p-4 rounded-xl shadow-md">
+          <LogViewer logs={logs} onClear={clearLogs} />
         </div>
       </div>
 

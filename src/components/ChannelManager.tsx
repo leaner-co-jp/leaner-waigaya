@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { SlackChannel } from "../lib/types"
+import { tauriAPI } from "../lib/tauri-api"
 
 interface ChannelManagerProps {
   isConnected: boolean
@@ -21,7 +22,7 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
   // 監視中のチャンネル一覧を取得
   const loadWatchedChannels = async () => {
     try {
-      const result = await window.electronAPI.getWatchedChannels()
+      const result = await tauriAPI.getWatchedChannels()
       setWatchedChannels(result.ids)
       setWatchedChannelData(result.data)
     } catch (error) {
@@ -38,7 +39,7 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
 
     setIsLoadingChannels(true)
     try {
-      const result = await window.electronAPI.slackGetChannels()
+      const result = await tauriAPI.slackGetChannels()
       if (result.success && result.channels) {
         setAvailableChannels(result.channels)
         console.log(
@@ -61,7 +62,7 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
 
     console.log("➕ チャンネル追加リクエスト:", selectedChannel)
     try {
-      const result = await window.electronAPI.addWatchChannel(selectedChannel)
+      const result = await tauriAPI.addWatchChannel(selectedChannel)
       console.log("➕ チャンネル追加結果:", result)
       if (result.success) {
         await loadWatchedChannels() // 監視リストを更新
@@ -79,7 +80,7 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
   const removeChannel = async (channelId: string) => {
     console.log("🗑️ チャンネル削除リクエスト:", channelId)
     try {
-      const result = await window.electronAPI.removeWatchChannel(channelId)
+      const result = await tauriAPI.removeWatchChannel(channelId)
       console.log("🗑️ チャンネル削除結果:", result)
       if (result.success) {
         await loadWatchedChannels() // 監視リストを更新
@@ -101,9 +102,15 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
   }, [isConnected])
 
   // チャンネル検索フィルタリング
-  const filteredChannels = availableChannels.filter((channel) =>
-    channel.name.toLowerCase().includes(channelSearch.toLowerCase())
-  )
+  const filteredChannels = availableChannels
+    .filter((channel) =>
+      channel.name.toLowerCase().includes(channelSearch.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aMember = a.is_member ? 1 : 0
+      const bMember = b.is_member ? 1 : 0
+      return bMember - aMember
+    })
 
   return (
     <>
@@ -251,7 +258,11 @@ export const ChannelManager: React.FC<ChannelManagerProps> = ({
                     <>
                       <option value="">チャンネルを選択してください</option>
                       {filteredChannels.map((channel) => (
-                        <option key={channel.id} value={channel.id}>
+                        <option
+                          key={channel.id}
+                          value={channel.id}
+                          disabled={!channel.is_member}
+                        >
                           #{channel.name}{" "}
                           {channel.is_private ? "(プライベート)" : ""}
                           {!channel.is_member ? " (未参加)" : ""}
