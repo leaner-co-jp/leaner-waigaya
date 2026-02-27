@@ -12,7 +12,15 @@
       "WebFetch(domain:ratulmaharaj.com)",
       "Bash(gh run view:*)",
       "Bash(npx tauri:*)",
-      "Bash(cargo check:*)"
+      "Bash(cargo check:*)",
+      "Bash(npm outdated)",
+      "Bash(cargo update --dry-run)",
+      "Bash(node -e \"const lock = require\\(''./package-lock.json''\\); const deps = lock.packages; const direct = [''@tauri-apps/api'',''@tauri-apps/plugin-opener'',''@tauri-apps/plugin-process'',''@tauri-apps/plugin-updater'',''framer-motion'',''gemoji'',''react'',''react-dom'',''@tailwindcss/postcss'',''@tauri-apps/cli'',''@types/react'',''@types/react-dom'',''@vitejs/plugin-react'',''tailwindcss'',''typescript'',''vite'']; direct.forEach\\(d => { const p = deps[''node_modules/'' + d]; if\\(p\\) console.log\\(d + '': '' + p.version\\); }\\);\")",
+      "Bash(npm update)",
+      "Bash(node -e \"const lock = require\\(''./package-lock.json''\\); const pkg = lock.packages[''node_modules/framer-motion'']; console.log\\(''framer-motion:'', pkg.version\\);\")",
+      "Bash(cargo update)",
+      "Skill(commit-commands:commit)",
+      "Skill(commit-commands:commit:*)"
     ]
   }
 }
