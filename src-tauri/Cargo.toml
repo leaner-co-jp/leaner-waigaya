@@ -1,6 +1,6 @@
 [package]
 name = "leaner-waigaya"
-version = "1.3.0"
+version = "1.3.1"
 description = "Slack Message Display App"
 authors = ["Yusuke Kokubo <yusuke.kokubo@gmail.com>"]
 edition = "2021"
