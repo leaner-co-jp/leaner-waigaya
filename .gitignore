@@ -67,4 +67,5 @@ dist/
 
 # Tauri
 src-tauri/target/
+out/
 
