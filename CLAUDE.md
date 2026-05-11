@@ -35,7 +35,7 @@ npm run type:check     # TypeScript型チェック
 
 - **Tauriコマンド（invoke）**: フロントエンドからRustの関数を呼び出す（`slack_connect`, `save_settings`等）
 - **Tauriイベント（emit/listen）**: ウィンドウ間通信とRust→フロントエンドの通知（`display-slack-message`, `display-settings-update`等）
-- フロントエンドのIPC呼び出しは `src/lib/tauri-api.ts` に集約（`window.electronAPI`互換レイヤー）
+- フロントエンドのIPC呼び出しは `src/lib/tauri-api.ts` に集約（`tauriAPI` を直接 import して使う）
 
 ### バックエンド（Rust: src-tauri/src/）
 
@@ -50,7 +50,7 @@ npm run type:check     # TypeScript型チェック
 - `src/lib/tauri-api.ts`: Tauri IPC ラッパー（全 invoke/listen はここ経由）
 - `src/lib/TextQueue.ts`: displayウィンドウのメッセージキュー管理
 - `src/lib/emoji-converter.ts`: Slack絵文字（`:name:`）→ Unicode/HTMLイメージ変換
-- `src/components/`: UI コンポーネント群（ChannelManager, DisplayWindow, SlackConnection 等）
+- `src/components/`: UI コンポーネント群（ChannelManager, DisplayWindow, SlackConnection, EmojiManager（カスタム絵文字管理）, UserManager（ユーザー情報キャッシュ）等）
 - `src/hooks/useLogger.ts`: コントロールUI用のログ管理（最大100件保持）
 
 ### メッセージ表示フロー
@@ -59,6 +59,8 @@ Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Displ
 
 ## Gotchas
 
+- **macOS専用**: `transparent` + `macOSPrivateApi: true` はmacOSのみ有効。他OSでは透過表示が動作しない
+- **Auto-updater**: GitHub Releases の `latest.json` をエンドポイントとして自動更新。ビルド時は minisign 秘密鍵が必要（`tauri signer generate` で生成）
 - **ポート固定**: Vite は `1420` をstrict使用。`tauri:dev` 前に他プロセスが占有していると起動失敗する
 - **Viteマルチエントリ**: `control.html` と `display.html` が別エントリ。`vite.config.ts` の `rollupOptions.input` で管理
 - **`_queueAction` フラグ**: `SlackMessage._queueAction` はフロントエンド内部用（TextQueueへの追加指示）。Slack API由来ではない
