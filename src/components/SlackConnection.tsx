@@ -45,6 +45,7 @@ export const SlackConnection: React.FC = () => {
   const [showDisplaySettings, setShowDisplaySettings] = useState(false)
   const [showEmojiManager, setShowEmojiManager] = useState(false)
   const [showChannelManager, setShowChannelManager] = useState(false)
+  const [lastEventAt, setLastEventAt] = useState<Date | null>(null)
   const { logs, addLog, clearLogs } = useLogger()
 
   // 初期化時に保存された設定を読み込み
@@ -122,6 +123,8 @@ export const SlackConnection: React.FC = () => {
         addLog("error", "接続", `❌ Socket Mode失敗: ${e.payload}`)),
       listen<string>('socket-mode-debug', (e) =>
         addLog("info", "接続", `[WS] ${e.payload}`)),
+      listen<number>('slack-last-event', (e) =>
+        setLastEventAt(new Date(e.payload * 1000))),
     ]).then((fns) => {
       if (cancelled) { fns.forEach((fn) => fn()); return }
       unlistenFns = fns
@@ -376,6 +379,19 @@ export const SlackConnection: React.FC = () => {
     // この機能は後で実装
   }
 
+  const formatLastEvent = (date: Date | null): string => {
+    if (!date) return "受信なし"
+    const mins = Math.floor((Date.now() - date.getTime()) / 60000)
+    if (mins < 1) return "たった今"
+    if (mins < 60) return `${mins}分前`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}時間前`
+    return `${Math.floor(hours / 24)}日前`
+  }
+
+  const lastEventWarning = isConnected && lastEventAt &&
+    Date.now() - lastEventAt.getTime() > 30 * 60 * 1000
+
   return (
     <div className="container max-w-xl mx-auto bg-white p-5 rounded-lg shadow-lg">
       <h1 className="text-gray-800 mb-5 text-xl font-bold">
@@ -411,6 +427,13 @@ export const SlackConnection: React.FC = () => {
               🔌 接続設定
             </button>
           </div>
+          {isConnected && (
+            <div className={`text-xs mt-1 flex items-center gap-1 ${lastEventWarning ? "text-amber-600" : "text-gray-400"}`}>
+              {lastEventWarning ? "⚠️" : "📨"}
+              最後のイベント受信: {formatLastEvent(lastEventAt)}
+              {lastEventWarning && " — Event Subscriptions がオフになっていないか確認してください"}
+            </div>
+          )}
         </div>
 
         {/* ユーザー一覧管理機能（現行システムと同等） */}

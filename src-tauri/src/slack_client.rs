@@ -279,6 +279,45 @@ struct SlackReactionEvent {
     message_ts: String,
 }
 
+// === エラーコード翻訳 ===
+
+fn translate_slack_error(code: &str) -> String {
+    match code {
+        "socket_mode_not_enabled" =>
+            "Socket Mode がオフになっています。Slack App の [Settings → Socket Mode] で有効化してください。",
+        "not_allowed_token_type" =>
+            "App Token（xapp-）が正しくありません。[Basic Information → App-Level Tokens] で connections:write スコープ付きトークンを生成してください。",
+        "invalid_auth" | "token_revoked" =>
+            "トークンが無効または失効しています。Slack App でトークンを再生成してください。",
+        "missing_scope" =>
+            "connections:write スコープが不足しています。App-Level Tokens の設定を確認してください。",
+        "no_permission" =>
+            "権限がありません。Slack App の [Event Subscriptions] が有効か確認してください。",
+        "account_inactive" =>
+            "Slackアカウントが無効化されています。",
+        _ => return format!("Slack APIエラー: {}", code),
+    }.to_string()
+}
+
+async fn check_token_valid(bot_token: &str) -> Result<(), String> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .post("https://slack.com/api/auth.test")
+        .bearer_auth(bot_token)
+        .send()
+        .await
+        .map_err(|e| format!("ネットワークエラー: {}", e))?;
+    let r: AuthTestResponse = resp
+        .json()
+        .await
+        .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
+    if r.ok {
+        Ok(())
+    } else {
+        Err(translate_slack_error(r.error.as_deref().unwrap_or("unknown")))
+    }
+}
+
 // === SlackClient 本体 ===
 
 pub struct SlackClientState {
@@ -292,8 +331,8 @@ struct SlackClientInner {
     user_cache: HashMap<String, serde_json::Value>,
     custom_emoji_cache: HashMap<String, String>,
     current_channel_name: String,
-    /// Socket Mode WebSocket 接続のキャンセルトークン
     socket_cancel: Option<tokio::sync::watch::Sender<bool>>,
+    last_event_at: Option<std::time::SystemTime>,
 }
 
 impl SlackClientState {
@@ -307,6 +346,7 @@ impl SlackClientState {
                 custom_emoji_cache: HashMap::new(),
                 current_channel_name: "waigaya".to_string(),
                 socket_cancel: None,
+                last_event_at: None,
             })),
         }
     }
@@ -515,7 +555,8 @@ impl SlackClientState {
             log::info!("Socket Mode接続テスト成功");
             Ok(())
         } else {
-            Err(format!("Socket Mode接続失敗: {}", result.error.unwrap_or_default()))
+            let code = result.error.as_deref().unwrap_or("unknown");
+            Err(translate_slack_error(code))
         }
     }
 
@@ -992,7 +1033,8 @@ impl SlackClientState {
             .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
 
         if !result.ok {
-            return Err(format!("Socket Mode接続失敗: {}", result.error.unwrap_or_default()));
+            let code = result.error.as_deref().unwrap_or("unknown");
+            return Err(translate_slack_error(code));
         }
 
         let ws_url = result.url.ok_or("WebSocket URLが取得できません")?;
@@ -1025,9 +1067,22 @@ impl SlackClientState {
         );
 
         let (mut write, mut read) = ws_stream.split();
+        let mut health_interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
+        health_interval.tick().await; // 最初のtickを消費（即時発火しないようにする）
 
         loop {
             tokio::select! {
+                _ = health_interval.tick() => {
+                    match check_token_valid(&bot_token).await {
+                        Ok(()) => {
+                            let _ = app_handle.emit("socket-mode-debug", "ヘルスチェック OK（トークン有効）");
+                        }
+                        Err(msg) => {
+                            log::warn!("ヘルスチェック失敗: {}", msg);
+                            let _ = app_handle.emit("socket-mode-error", format!("⚠️ ヘルスチェック失敗: {}", msg));
+                        }
+                    }
+                }
                 _ = cancel_rx.changed() => {
                     if *cancel_rx.borrow() {
                         log::info!("Socket Mode接続をキャンセル");
@@ -1117,6 +1172,11 @@ impl SlackClientState {
 
                                                             if let Err(e) = app_handle.emit("slack-reaction", &reaction_event) {
                                                                 log::error!("リアクションイベント送信エラー: {}", e);
+                                                            } else {
+                                                                let now = std::time::SystemTime::now();
+                                                                inner.write().await.last_event_at = Some(now);
+                                                                let secs = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+                                                                let _ = app_handle.emit("slack-last-event", secs);
                                                             }
                                                         }
                                                     }
@@ -1234,6 +1294,10 @@ impl SlackClientState {
                                                                 log::error!("メッセージ送信エラー: {}", e);
                                                             } else {
                                                                 log::info!("メッセージをフロントエンドに送信: {}", message.text.chars().take(50).collect::<String>());
+                                                                let now = std::time::SystemTime::now();
+                                                                inner.write().await.last_event_at = Some(now);
+                                                                let secs = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+                                                                let _ = app_handle.emit("slack-last-event", secs);
                                                             }
                                                         } else {
                                                             let _ = app_handle.emit("socket-mode-debug", format!(
