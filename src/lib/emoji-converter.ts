@@ -43,8 +43,13 @@ export class EmojiConverter {
       // 標準絵文字にない場合はカスタム絵文字をチェック
       if (!emoji && this.customEmojis[emojiName]) {
         const customEmojiUrl = this.customEmojis[emojiName];
-        // カスタム絵文字はイメージタグで表示
-        emoji = `<img src="${customEmojiUrl}" alt=":${emojiName}:" class="custom-emoji" style="width: 1.2em; height: 1.2em; vertical-align: middle; display: inline-block;" />`;
+        // カスタム絵文字はイメージタグで表示（透過PNGでも見やすいよう背景を白に）
+        emoji = `<img src="${customEmojiUrl}" alt=":${emojiName}:" class="custom-emoji" style="width: 1.2em; height: 1.2em; vertical-align: middle; display: inline-block; background-color: #ffffff; border-radius: 2px; object-fit: contain;" />`;
+      }
+
+      // Unicode 絵文字は img 以外の文字列 — 表示域に白背景を敷く
+      if (emoji && !emoji.startsWith("<")) {
+        emoji = `<span class="slack-unicode-emoji" style="background-color: #ffffff; display: inline-block; vertical-align: middle; line-height: 1; border-radius: 2px;">${emoji}</span>`;
       }
 
       return emoji || match; // 見つからない場合は元のまま

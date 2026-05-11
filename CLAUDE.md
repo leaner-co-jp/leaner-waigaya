@@ -16,12 +16,20 @@ npm run type:check     # TypeScript型チェック
 
 前提条件: Node.js v20以上、Rust最新stable、Tauri v2の前提条件
 
+## Slack セットアップ（初回）
+
+1. Slack App を作成し **Socket Mode** を有効化
+2. Bot Token（`xoxb-`）と App Token（`xapp-`）を取得
+3. アプリ起動後、controlウィンドウでトークンを入力して接続
+
 ## アーキテクチャ
 
 ### マルチウィンドウ構成
 
 - **controlウィンドウ** (`control.html` → `src/control-renderer.ts` → `ControlApp.tsx`): Slack接続管理、チャンネル選択、表示設定のUI
 - **displayウィンドウ** (`display.html` → `src/display-renderer.ts` → `DisplayApp.tsx`): メッセージの透過表示。常に最前面、マウスイベント透過
+  - `tauri.conf.json` で `transparent: true`, `alwaysOnTop: true` を設定
+  - macOSでの透過には `macOSPrivateApi: true` が必須
 
 ### フロントエンド → バックエンド通信
 
@@ -36,9 +44,25 @@ npm run type:check     # TypeScript型チェック
 - `storage.rs`: ローカル設定の永続化
 - `commands/slack.rs`, `commands/config.rs`: Tauriコマンド実装
 
+### キーファイル（フロントエンド）
+
+- `src/lib/types.ts`: フロントエンド全体の型定義
+- `src/lib/tauri-api.ts`: Tauri IPC ラッパー（全 invoke/listen はここ経由）
+- `src/lib/TextQueue.ts`: displayウィンドウのメッセージキュー管理
+- `src/lib/emoji-converter.ts`: Slack絵文字（`:name:`）→ Unicode/HTMLイメージ変換
+- `src/components/`: UI コンポーネント群（ChannelManager, DisplayWindow, SlackConnection 等）
+- `src/hooks/useLogger.ts`: コントロールUI用のログ管理（最大100件保持）
+
 ### メッセージ表示フロー
 
 Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Display側で `TextQueue`(`src/lib/TextQueue.ts`) に蓄積 → `DisplayWindow.tsx` でFramer Motionアニメーション付き表示
+
+## Gotchas
+
+- **ポート固定**: Vite は `1420` をstrict使用。`tauri:dev` 前に他プロセスが占有していると起動失敗する
+- **Viteマルチエントリ**: `control.html` と `display.html` が別エントリ。`vite.config.ts` の `rollupOptions.input` で管理
+- **`_queueAction` フラグ**: `SlackMessage._queueAction` はフロントエンド内部用（TextQueueへの追加指示）。Slack API由来ではない
+- **絵文字変換**: `emoji-converter.ts` の出力は HTML文字列。インナーHTMLとして描画するため、Slack API以外の入力を渡さないこと
 
 ## コーディング規約
 
