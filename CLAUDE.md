@@ -13,6 +13,7 @@ npm run dev            # フロントエンドのみ起動（Tauriなし、UI確
 npm run tauri:dev      # 開発モード起動（フロントエンド + Rustバックエンド）
 npm run tauri:build    # 本番ビルド
 npm run type:check     # TypeScript型チェック
+cd src-tauri && cargo check  # Rustのコンパイルエラーだけ素早く確認（full buildより速い）
 ```
 
 前提条件: Node.js v20以上、Rust最新stable、Tauri v2の前提条件
@@ -70,6 +71,9 @@ Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Displ
 - **Viteマルチエントリ**: `control.html` と `display.html` が別エントリ。`vite.config.ts` の `rollupOptions.input` で管理
 - **`_queueAction` フラグ**: `SlackMessage._queueAction` はフロントエンド内部用（TextQueueへの追加指示）。Slack API由来ではない
 - **絵文字変換**: `emoji-converter.ts` の出力は HTML文字列。インナーHTMLとして描画するため、Slack API以外の入力を渡さないこと
+- **外部URLを開く**: `openUrl` from `@tauri-apps/plugin-opener`（Rust側 `tauri-plugin-opener = "2"` と対応）
+- **Slack message subtype**: `message` タイプイベントには `bot_message`/`message_changed`/`message_deleted` 等のsubtypeがある。`SlackEvent` 構造体に `subtype: Option<String>` フィールドが必要
+- **デバッグログ経路**: Rust → フロントエンドのデバッグ情報は `socket-mode-debug`（String payload）イベント経由でLogViewerに届く
 
 ## コーディング規約
 
