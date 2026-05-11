@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useState } from "react"
 import { LogEntry, LogLevel } from "../hooks/useLogger"
 
 interface LogViewerProps {
@@ -26,16 +26,38 @@ const formatTime = (date: Date) =>
   date.toTimeString().slice(0, 8)
 
 export const LogViewer: React.FC<LogViewerProps> = ({ logs, onClear }) => {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    const text = [...logs]
+      .reverse()
+      .map((e) => `${formatTime(e.timestamp)} [${e.category}] ${e.message}`)
+      .join("\n")
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
         <h3 className="font-semibold text-lg">📋 ログ</h3>
-        <button
-          onClick={onClear}
-          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded border border-gray-300 hover:bg-gray-50"
-        >
-          クリア
-        </button>
+        <div className="flex gap-1">
+          <button
+            onClick={handleCopy}
+            disabled={logs.length === 0}
+            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-40"
+          >
+            {copied ? "コピーしました" : "コピー"}
+          </button>
+          <button
+            onClick={onClear}
+            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded border border-gray-300 hover:bg-gray-50"
+          >
+            クリア
+          </button>
+        </div>
       </div>
 
       {logs.length === 0 ? (

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { listen } from "@tauri-apps/api/event"
+import { openUrl } from "@tauri-apps/plugin-opener"
 import { SlackConfig, SlackMessage, SlackReactionEvent } from "../lib/types"
 import { tauriAPI } from "../lib/tauri-api"
 import { ChannelManager } from "./ChannelManager"
@@ -10,6 +11,26 @@ import { LogViewer } from "./LogViewer"
 import { useLogger } from "../hooks/useLogger"
 import { textQueue } from "../lib/TextQueue"
 
+const maskToken = (token: string): string => {
+  if (!token || token.length < 8) return ""
+  const dashIdx = token.indexOf("-")
+  const prefix = dashIdx > 0 ? token.substring(0, dashIdx) : token.substring(0, 4)
+  return `${prefix}-****...${token.slice(-4)}`
+}
+
+const EyeIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+)
+
+const EyeOffIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+  </svg>
+)
+
 export const SlackConnection: React.FC = () => {
   const [config, setConfig] = useState<SlackConfig>({
     botToken: "",
@@ -19,6 +40,8 @@ export const SlackConnection: React.FC = () => {
   const [status, setStatus] = useState("未接続")
   const [isLoading, setIsLoading] = useState(false)
   const [showConnectionDialog, setShowConnectionDialog] = useState(false)
+  const [showBotToken, setShowBotToken] = useState(false)
+  const [showAppToken, setShowAppToken] = useState(false)
   const [showDisplaySettings, setShowDisplaySettings] = useState(false)
   const [showEmojiManager, setShowEmojiManager] = useState(false)
   const [showChannelManager, setShowChannelManager] = useState(false)
@@ -165,10 +188,11 @@ export const SlackConnection: React.FC = () => {
             testConfig
           )
           if (connectResult.success) {
-            setStatus("✅ Slack自動接続成功")
+            setStatus("✅ Slack接続成功")
             setIsConnected(true)
-            addLog("info", "接続", "Slack自動接続成功")
-            console.log("🎯 現行システムと同じ動作: 自動接続完了")
+            setShowConnectionDialog(false)
+            addLog("info", "接続", "Slack接続成功")
+            console.log("🎯 Slack接続完了")
 
             // 🚀 現行システムと同じ動作: 接続成功後にローカルデータを自動読み込み
             await loadLocalData()
@@ -233,61 +257,6 @@ export const SlackConnection: React.FC = () => {
     }
   }
 
-  const handleConnect = async () => {
-    setIsLoading(true)
-
-    try {
-      // 設定を保存
-      const saveResult = await tauriAPI.saveConfig(config)
-      if (!saveResult.success) {
-        setStatus(`❌ 設定保存失敗: ${saveResult.error}`)
-        return
-      }
-
-      // 接続実行
-      const connectResult = await tauriAPI.slackConnect(config)
-      if (connectResult.success) {
-        setStatus("✅ Slack接続成功")
-        setIsConnected(true)
-        setShowConnectionDialog(false)
-        addLog("info", "接続", "Slack接続成功（手動）")
-
-        // 手動接続成功時もローカルデータを自動読み込み
-        await loadLocalData()
-
-        // 手動接続成功時もユーザー一覧を自動取得
-        console.log("📥 手動接続: ユーザー一覧を自動取得開始...")
-        try {
-          const usersResult = await tauriAPI.slackReloadUsers()
-          if (usersResult.success) {
-            console.log(
-              `✅ 手動接続: ユーザー一覧自動取得完了: ${usersResult.count}件`
-            )
-            addLog("info", "ユーザー", `ユーザー一覧取得完了: ${usersResult.count}件`)
-          } else {
-            console.warn(
-              "⚠️ 手動接続: ユーザー一覧自動取得失敗:",
-              usersResult.error
-            )
-            addLog("warn", "ユーザー", `ユーザー一覧取得失敗: ${usersResult.error}`)
-          }
-        } catch (error) {
-          console.error("❌ 手動接続: ユーザー一覧自動取得エラー:", error)
-          addLog("error", "ユーザー", `ユーザー一覧取得エラー: ${error}`)
-        }
-      } else {
-        setStatus(`❌ Slack接続失敗: ${connectResult.error || "不明なエラー"}`)
-        setIsConnected(false)
-        addLog("error", "接続", `Slack接続失敗: ${connectResult.error ?? "不明なエラー"}`)
-      }
-    } catch (error) {
-      setStatus(`❌ 接続エラー: ${error}`)
-      setIsConnected(false)
-      addLog("error", "接続", `接続エラー: ${error}`)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleClearConfig = () => {
     setConfig({ botToken: "", appToken: "" })
@@ -502,58 +471,98 @@ export const SlackConnection: React.FC = () => {
             </div>
 
             <div className="slack-config">
+              {/* セットアップガイド */}
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                <p className="font-semibold text-blue-800 mb-1">トークンの取得方法</p>
+                <ol className="text-blue-700 space-y-1 list-decimal list-inside">
+                  <li>
+                    <button
+                      onClick={() => openUrl("https://api.slack.com/apps")}
+                      className="underline hover:text-blue-900"
+                    >
+                      api.slack.com/apps
+                    </button>
+                    でアプリを作成
+                  </li>
+                  <li>Socket Mode を有効化（Settings → Socket Mode）</li>
+                  <li>Bot Token: OAuth &amp; Permissions → Bot User OAuth Token（<code>xoxb-</code>）</li>
+                  <li>App Token: Basic Information → App-Level Tokens（<code>connections:write</code> スコープ）</li>
+                </ol>
+              </div>
+
+              {/* Bot Token */}
               <div className="mb-4">
                 <label htmlFor="botToken" className="block mb-1 font-semibold">
                   Bot Token (xoxb-):
                 </label>
-                <input
-                  type="password"
-                  id="botToken"
-                  placeholder="xoxb-your-bot-token"
-                  value={config.botToken}
-                  onChange={(e) =>
-                    setConfig({ ...config, botToken: e.target.value })
-                  }
-                  className="border rounded-sm px-3 py-2 mb-2 w-full focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="relative">
+                  <input
+                    type={showBotToken ? "text" : "password"}
+                    id="botToken"
+                    placeholder="xoxb-your-bot-token"
+                    value={config.botToken}
+                    onChange={(e) =>
+                      setConfig({ ...config, botToken: e.target.value })
+                    }
+                    className="border rounded-sm px-3 py-2 w-full pr-10 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowBotToken(!showBotToken)}
+                    className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-700"
+                    tabIndex={-1}
+                  >
+                    {showBotToken ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+                {config.botToken && (
+                  <p className="text-xs text-gray-400 mt-1">{maskToken(config.botToken)}</p>
+                )}
               </div>
 
+              {/* App Token */}
               <div className="mb-4">
                 <label htmlFor="appToken" className="block mb-1 font-semibold">
                   App Token (xapp-):
                 </label>
-                <input
-                  type="password"
-                  id="appToken"
-                  placeholder="xapp-your-app-token"
-                  value={config.appToken}
-                  onChange={(e) =>
-                    setConfig({ ...config, appToken: e.target.value })
-                  }
-                  className="border rounded-sm px-3 py-2 mb-2 w-full focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="relative">
+                  <input
+                    type={showAppToken ? "text" : "password"}
+                    id="appToken"
+                    placeholder="xapp-your-app-token"
+                    value={config.appToken}
+                    onChange={(e) =>
+                      setConfig({ ...config, appToken: e.target.value })
+                    }
+                    className="border rounded-sm px-3 py-2 w-full pr-10 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAppToken(!showAppToken)}
+                    className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-700"
+                    tabIndex={-1}
+                  >
+                    {showAppToken ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+                {config.appToken && (
+                  <p className="text-xs text-gray-400 mt-1">{maskToken(config.appToken)}</p>
+                )}
               </div>
 
               <div className="controls mb-4 flex gap-2">
                 <button
                   onClick={() => testConnection()}
                   disabled={isLoading || !config.botToken || !config.appToken}
-                  className="bg-green-600 text-white rounded-sm px-4 py-2 hover:bg-green-800 disabled:opacity-50"
+                  className="bg-blue-600 text-white rounded-sm px-4 py-2 hover:bg-blue-800 disabled:opacity-50 flex-1"
                 >
-                  {isLoading ? "接続テスト中..." : "接続テスト"}
-                </button>
-                <button
-                  onClick={handleConnect}
-                  disabled={isLoading || !config.botToken || !config.appToken}
-                  className="bg-blue-600 text-white rounded-sm px-4 py-2 hover:bg-blue-800 disabled:opacity-50"
-                >
-                  {isLoading ? "接続中..." : "Slack接続"}
+                  {isLoading ? "接続中..." : "接続する"}
                 </button>
                 <button
                   onClick={handleClearConfig}
                   className="bg-red-600 text-white rounded-sm px-4 py-2 hover:bg-red-800"
                 >
-                  設定クリア
+                  クリア
                 </button>
               </div>
             </div>

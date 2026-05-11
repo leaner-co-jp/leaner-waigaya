@@ -243,6 +243,8 @@ struct SocketModePayload {
 struct SlackEvent {
     #[serde(rename = "type")]
     event_type: Option<String>,
+    #[serde(default)]
+    subtype: Option<String>,
     channel: Option<String>,
     user: Option<String>,
     text: Option<String>,
@@ -1004,15 +1006,22 @@ impl SlackClientState {
         log::info!("Socket Mode WebSocket接続成功");
         let _ = app_handle.emit("socket-mode-connected", ());
 
-        // 監視チャンネル数をデバッグ情報として通知
-        let watched_count = inner.read().await.watched_channels.len();
+        // 監視チャンネル一覧をデバッグ情報として通知
+        let watched_channels_snapshot: Vec<String> = {
+            let r = inner.read().await;
+            let mut v: Vec<String> = r.watched_channels.iter().cloned().collect();
+            v.sort();
+            v
+        };
+        let watched_count = watched_channels_snapshot.len();
+        let channel_ids_str = if watched_count == 0 {
+            "なし ← チャンネルを追加してください".to_string()
+        } else {
+            watched_channels_snapshot.join(", ")
+        };
         let _ = app_handle.emit(
             "socket-mode-debug",
-            format!(
-                "監視チャンネル数: {}件{}",
-                watched_count,
-                if watched_count == 0 { " ← チャンネルを追加してください" } else { "" }
-            ),
+            format!("監視チャンネル: {}件 [{}]", watched_count, channel_ids_str),
         );
 
         let (mut write, mut read) = ws_stream.split();
@@ -1050,12 +1059,31 @@ impl SlackClientState {
                                     if let Some(payload) = &socket_msg.payload {
                                         if let Some(event) = &payload.event {
                                             let event_type_str = event.event_type.as_deref().unwrap_or("unknown");
-                                            let channel_str = event.channel.as_deref().unwrap_or("none");
-                                            let watched = if let Some(ch) = &event.channel {
-                                                inner.read().await.watched_channels.contains(ch)
-                                            } else { false };
-                                            log::info!("events_api: event_type={} channel={} is_watched={}", event_type_str, channel_str, watched);
-                                            let _ = app_handle.emit("socket-mode-debug", format!("events_api: type={} ch={} watched={}", event_type_str, channel_str, watched));
+                                            let subtype_str = event.subtype.as_deref().unwrap_or("");
+                                            let channel_str = event.channel.as_deref().unwrap_or("(none)");
+                                            let (watched, watched_ids_str) = if let Some(ch) = &event.channel {
+                                                let r = inner.read().await;
+                                                let is_w = r.watched_channels.contains(ch);
+                                                let ids: Vec<String> = r.watched_channels.iter().cloned().collect();
+                                                (is_w, ids.join(", "))
+                                            } else { (false, String::new()) };
+                                            let subtype_label = if subtype_str.is_empty() {
+                                                String::new()
+                                            } else {
+                                                format!(" subtype={}", subtype_str)
+                                            };
+                                            log::info!("events_api: type={}{} ch={} watched={}", event_type_str, subtype_label, channel_str, watched);
+                                            if !watched && !watched_ids_str.is_empty() {
+                                                let _ = app_handle.emit("socket-mode-debug", format!(
+                                                    "events_api: type={}{} ch={} watched=false (監視中: [{}])",
+                                                    event_type_str, subtype_label, channel_str, watched_ids_str
+                                                ));
+                                            } else {
+                                                let _ = app_handle.emit("socket-mode-debug", format!(
+                                                    "events_api: type={}{} ch={} watched={}",
+                                                    event_type_str, subtype_label, channel_str, watched
+                                                ));
+                                            }
                                             if event.event_type.as_deref() == Some("reaction_added") || event.event_type.as_deref() == Some("reaction_removed") {
                                                 if let Some(item) = &event.item {
                                                     if let Some(item_channel) = &item.channel {
@@ -1094,7 +1122,12 @@ impl SlackClientState {
                                                     }
                                                 }
                                             } else if event.event_type.as_deref() == Some("message") {
-                                                if let Some(channel) = &event.channel {
+                                                // subtypeがある場合はスキップ（bot_message, message_changed等）
+                                                if let Some(ref st) = event.subtype {
+                                                    let _ = app_handle.emit("socket-mode-debug", format!(
+                                                        "message スキップ: subtype={} ch={}", st, channel_str
+                                                    ));
+                                                } else if let Some(channel) = &event.channel {
                                                     let is_watched = {
                                                         inner.read().await.watched_channels.contains(channel)
                                                     };
@@ -1202,6 +1235,11 @@ impl SlackClientState {
                                                             } else {
                                                                 log::info!("メッセージをフロントエンドに送信: {}", message.text.chars().take(50).collect::<String>());
                                                             }
+                                                        } else {
+                                                            let _ = app_handle.emit("socket-mode-debug", format!(
+                                                                "message スキップ: テキスト・画像なし ch={} user={}",
+                                                                channel, user_id
+                                                            ));
                                                         }
                                                     }
                                                 }
