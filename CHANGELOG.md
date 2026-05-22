@@ -1,3 +1,16 @@
+## [1.3.4] - 2026-05-22
+
+### Added
+- Socket Modeの再接続・切断通知と画像の非同期取得を実装
+
+### Fixed
+- Socket Modeのタスク重複実行とAPI呼び出しタイムアウトを修正
+- tauri-api.ts リスナーの Promise 完了前アンマウントによるメモリリークを修正
+- Socket Mode 安定化のレビュー指摘点（4件）を修正
+- SocketRetryOutcome を impl ブロック外に移してビルドエラーを解消
+
+---
+
 ## [1.3.3] - 2026-05-22
 
 ### Fixed
