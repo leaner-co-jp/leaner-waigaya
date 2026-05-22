@@ -299,8 +299,13 @@ fn translate_slack_error(code: &str) -> String {
     }.to_string()
 }
 
+const HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 async fn check_token_valid(bot_token: &str) -> Result<(), String> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(HTTP_TIMEOUT)
+        .build()
+        .unwrap_or_default();
     let resp = client
         .post("https://slack.com/api/auth.test")
         .bearer_auth(bot_token)
@@ -332,6 +337,7 @@ struct SlackClientInner {
     custom_emoji_cache: HashMap<String, String>,
     current_channel_name: String,
     socket_cancel: Option<tokio::sync::watch::Sender<bool>>,
+    socket_task: Option<tokio::task::JoinHandle<()>>,
     last_event_at: Option<std::time::SystemTime>,
 }
 
@@ -346,6 +352,7 @@ impl SlackClientState {
                 custom_emoji_cache: HashMap::new(),
                 current_channel_name: "waigaya".to_string(),
                 socket_cancel: None,
+                socket_task: None,
                 last_event_at: None,
             })),
         }
@@ -482,18 +489,19 @@ impl SlackClientState {
         let app_token_clone = app_token.clone();
         let bot_token_clone = bot_token.clone();
 
-        // 既存のSocket接続をキャンセル
+        // 既存のSocket接続をキャンセル・タスクを強制停止
         {
             let mut inner = self.inner.write().await;
             if let Some(cancel) = inner.socket_cancel.take() {
                 let _ = cancel.send(true);
             }
+            if let Some(handle) = inner.socket_task.take() {
+                handle.abort();
+            }
         }
 
         let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
-        self.inner.write().await.socket_cancel = Some(cancel_tx);
-
-        tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             if let Err(e) = Self::run_socket_mode(
                 inner_clone,
                 app_handle_clone,
@@ -505,6 +513,11 @@ impl SlackClientState {
                 let _ = app_handle_for_error.emit("socket-mode-error", e.to_string());
             }
         });
+        {
+            let mut inner = self.inner.write().await;
+            inner.socket_cancel = Some(cancel_tx);
+            inner.socket_task = Some(handle);
+        }
 
         SlackConnectionResult {
             success: true,
@@ -516,6 +529,9 @@ impl SlackClientState {
         let mut inner = self.inner.write().await;
         if let Some(cancel) = inner.socket_cancel.take() {
             let _ = cancel.send(true);
+        }
+        if let Some(handle) = inner.socket_task.take() {
+            handle.abort();
         }
         inner.is_connected = false;
         log::info!("Slack切断完了");
@@ -1348,6 +1364,7 @@ impl SlackClientState {
     async fn fetch_image_as_data_url(bot_token: &str, url: &str, mimetype: &str) -> Option<String> {
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
+            .timeout(HTTP_TIMEOUT)
             .build()
             .ok()?;
 
@@ -1367,7 +1384,11 @@ impl SlackClientState {
                 .and_then(|v| v.to_str().ok())?;
             log::debug!("画像リダイレクト先: {}", &redirect_url[..redirect_url.len().min(80)]);
 
-            let img_resp = reqwest::get(redirect_url).await.ok()?;
+            let cdn_client = reqwest::Client::builder()
+                .timeout(HTTP_TIMEOUT)
+                .build()
+                .ok()?;
+            let img_resp = cdn_client.get(redirect_url).send().await.ok()?;
             if !img_resp.status().is_success() {
                 log::warn!("画像リダイレクト先ダウンロード失敗: status={}", img_resp.status());
                 return None;
@@ -1430,7 +1451,10 @@ impl SlackClientState {
             return serde_json::json!({"name": "unknown", "profile": {}});
         }
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(HTTP_TIMEOUT)
+            .build()
+            .unwrap_or_default();
         let resp = client
             .get("https://slack.com/api/users.info")
             .bearer_auth(bot_token)
@@ -1465,7 +1489,10 @@ impl SlackClientState {
             return None;
         }
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(HTTP_TIMEOUT)
+            .build()
+            .unwrap_or_default();
         let resp = client
             .get("https://slack.com/api/conversations.replies")
             .bearer_auth(bot_token)
@@ -1552,5 +1579,30 @@ impl SlackClientState {
         }
 
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn abort_terminates_spawned_task() {
+        let handle = tokio::spawn(async {
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+        });
+        assert!(!handle.is_finished());
+        handle.abort();
+        let result = handle.await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn abort_on_already_finished_task_is_safe() {
+        let handle = tokio::spawn(async {});
+        // yield して spawned タスクが完了するのを待つ
+        tokio::task::yield_now().await;
+        assert!(handle.is_finished());
+        // 完了済みのタスクに abort() しても安全（no-op）
+        handle.abort();
     }
 }
