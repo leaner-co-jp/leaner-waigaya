@@ -312,6 +312,11 @@ const HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 const IMAGE_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 const MAX_BACKOFF_SECS: u64 = 60;
 
+enum SocketRetryOutcome {
+    ContinueReconnect,
+    BreakReconnect,
+}
+
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 static IMAGE_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
@@ -1067,11 +1072,6 @@ impl SlackClientState {
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(secs)) => false,
             _ = cancel_rx.changed() => *cancel_rx.borrow(),
         }
-    }
-
-    enum SocketRetryOutcome {
-        ContinueReconnect,
-        BreakReconnect,
     }
 
     /// 再接続ループ内の接続失敗を処理。初回試行のみ `Err` を返して呼び出し元へ伝播する。
