@@ -1,7 +1,7 @@
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tauri::Emitter;
 use tokio::sync::RwLock;
 
@@ -230,8 +230,17 @@ struct AppsConnectionsOpenResponse {
 struct SocketModeMessage {
     #[serde(rename = "type")]
     msg_type: Option<String>,
+    #[serde(default)]
+    reason: Option<String>,
     envelope_id: Option<String>,
     payload: Option<SocketModePayload>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct MessageImagesReady {
+    channel: String,
+    timestamp: String,
+    images: Vec<ImageData>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -300,12 +309,33 @@ fn translate_slack_error(code: &str) -> String {
 }
 
 const HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+const IMAGE_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+const MAX_BACKOFF_SECS: u64 = 60;
+
+static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+static IMAGE_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn http_client() -> &'static reqwest::Client {
+    HTTP_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(HTTP_TIMEOUT)
+            .build()
+            .unwrap_or_default()
+    })
+}
+
+fn image_http_client() -> &'static reqwest::Client {
+    IMAGE_HTTP_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(HTTP_TIMEOUT)
+            .build()
+            .unwrap_or_default()
+    })
+}
 
 async fn check_token_valid(bot_token: &str) -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .timeout(HTTP_TIMEOUT)
-        .build()
-        .unwrap_or_default();
+    let client = http_client();
     let resp = client
         .post("https://slack.com/api/auth.test")
         .bearer_auth(bot_token)
@@ -472,7 +502,6 @@ impl SlackClientState {
                     };
                 }
                 log::info!("Bot Token認証成功");
-                self.inner.write().await.is_connected = true;
             }
             Err(e) => {
                 return SlackConnectionResult {
@@ -540,7 +569,7 @@ impl SlackClientState {
     // --- Slack Web API ---
 
     async fn auth_test(&self, token: &str) -> Result<AuthTestResponse, String> {
-        let client = reqwest::Client::new();
+        let client = http_client();
         let resp = client
             .post("https://slack.com/api/auth.test")
             .bearer_auth(token)
@@ -554,7 +583,7 @@ impl SlackClientState {
     }
 
     async fn test_socket_mode(&self, app_token: &str) -> Result<(), String> {
-        let client = reqwest::Client::new();
+        let client = http_client();
         let resp = client
             .post("https://slack.com/api/apps.connections.open")
             .bearer_auth(app_token)
@@ -589,7 +618,7 @@ impl SlackClientState {
             };
         }
 
-        let client = reqwest::Client::new();
+        let client = http_client();
         let mut all_channels = Vec::new();
         let mut cursor = String::new();
 
@@ -678,7 +707,7 @@ impl SlackClientState {
             };
         }
 
-        let client = reqwest::Client::new();
+        let client = http_client();
         let resp = client
             .get("https://slack.com/api/conversations.info")
             .bearer_auth(&bot_token)
@@ -822,7 +851,7 @@ impl SlackClientState {
             return Err("Bot Tokenが設定されていません".to_string());
         }
 
-        let client = reqwest::Client::new();
+        let client = http_client();
         let resp = client
             .get("https://slack.com/api/users.list")
             .bearer_auth(&bot_token)
@@ -878,7 +907,7 @@ impl SlackClientState {
             return serde_json::json!({"name": "unknown", "profile": {}});
         }
 
-        let client = reqwest::Client::new();
+        let client = http_client();
         let resp = client
             .get("https://slack.com/api/users.info")
             .bearer_auth(&bot_token)
@@ -923,7 +952,7 @@ impl SlackClientState {
             };
         }
 
-        let client = reqwest::Client::new();
+        let client = http_client();
         let resp = match client
             .get("https://slack.com/api/emoji.list")
             .bearer_auth(&bot_token)
@@ -1022,6 +1051,16 @@ impl SlackClientState {
 
     // --- Socket Mode ---
 
+    async fn backoff_wait(
+        cancel_rx: &mut tokio::sync::watch::Receiver<bool>,
+        secs: u64,
+    ) -> bool {
+        tokio::select! {
+            _ = tokio::time::sleep(tokio::time::Duration::from_secs(secs)) => false,
+            _ = cancel_rx.changed() => *cancel_rx.borrow(),
+        }
+    }
+
     async fn run_socket_mode(
         inner: Arc<RwLock<SlackClientInner>>,
         app_handle: tauri::AppHandle,
@@ -1032,61 +1071,166 @@ impl SlackClientState {
         use futures_util::{SinkExt, StreamExt};
         use tokio_tungstenite::tungstenite::Message;
 
-        log::info!("Socket Mode接続開始...");
-
-        // WebSocket URLを取得
-        let client = reqwest::Client::new();
-        let resp = client
-            .post("https://slack.com/api/apps.connections.open")
-            .bearer_auth(&app_token)
-            .send()
-            .await
-            .map_err(|e| format!("HTTP通信エラー: {}", e))?;
-
-        let result: AppsConnectionsOpenResponse = resp
-            .json()
-            .await
-            .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
-
-        if !result.ok {
-            let code = result.error.as_deref().unwrap_or("unknown");
-            return Err(translate_slack_error(code));
+        #[derive(PartialEq)]
+        enum SocketInnerExit {
+            Cancelled,
+            LinkDisabled,
+            Disconnected,
         }
 
-        let ws_url = result.url.ok_or("WebSocket URLが取得できません")?;
-        log::info!("Socket Mode WebSocket URL取得成功");
+        log::info!("Socket Mode接続開始...");
 
-        // WebSocket接続
-        let (ws_stream, _) = tokio_tungstenite::connect_async(&ws_url)
+        let mut backoff_secs: u64 = 1;
+        let mut reconnect_attempt: u32 = 0;
+
+        'reconnect: loop {
+            if *cancel_rx.borrow() {
+                log::info!("Socket Mode: キャンセル済みのため終了");
+                break 'reconnect;
+            }
+
+            reconnect_attempt += 1;
+            if reconnect_attempt > 1 {
+                log::info!("Socket Mode再接続試行: {}回目", reconnect_attempt);
+                let _ = app_handle.emit("socket-mode-reconnecting", reconnect_attempt);
+            }
+
+            // WebSocket URLを取得
+            let client = http_client();
+            let resp = match client
+                .post("https://slack.com/api/apps.connections.open")
+                .bearer_auth(&app_token)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    let err = format!("HTTP通信エラー: {}", e);
+                    log::warn!("apps.connections.open失敗: {}", err);
+                    if reconnect_attempt == 1 {
+                        return Err(err);
+                    }
+                    inner.write().await.is_connected = false;
+                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
+                        break 'reconnect;
+                    }
+                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
+                    continue 'reconnect;
+                }
+            };
+
+            let result: AppsConnectionsOpenResponse = match resp.json().await {
+                Ok(r) => r,
+                Err(e) => {
+                    let err = format!("レスポンス解析エラー: {}", e);
+                    if reconnect_attempt == 1 {
+                        return Err(err);
+                    }
+                    inner.write().await.is_connected = false;
+                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
+                        break 'reconnect;
+                    }
+                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
+                    continue 'reconnect;
+                }
+            };
+
+            if !result.ok {
+                let code = result.error.as_deref().unwrap_or("unknown");
+                let err = translate_slack_error(code);
+                if reconnect_attempt == 1 {
+                    return Err(err);
+                }
+                log::warn!("apps.connections.open APIエラー: {}", err);
+                inner.write().await.is_connected = false;
+                if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
+                    break 'reconnect;
+                }
+                backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
+                continue 'reconnect;
+            }
+
+            let ws_url = match result.url {
+                Some(url) => url,
+                None => {
+                    if reconnect_attempt == 1 {
+                        return Err("WebSocket URLが取得できません".to_string());
+                    }
+                    inner.write().await.is_connected = false;
+                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
+                        break 'reconnect;
+                    }
+                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
+                    continue 'reconnect;
+                }
+            };
+            log::info!("Socket Mode WebSocket URL取得成功");
+
+            let (ws_stream, _) = match tokio::time::timeout(
+                HTTP_TIMEOUT,
+                tokio_tungstenite::connect_async(&ws_url),
+            )
             .await
-            .map_err(|e| format!("WebSocket接続エラー: {}", e))?;
+            {
+                Ok(Ok(stream)) => stream,
+                Ok(Err(e)) => {
+                    let err = format!("WebSocket接続エラー: {}", e);
+                    log::warn!("{}", err);
+                    if reconnect_attempt == 1 {
+                        return Err(err);
+                    }
+                    inner.write().await.is_connected = false;
+                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
+                        break 'reconnect;
+                    }
+                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
+                    continue 'reconnect;
+                }
+                Err(_) => {
+                    let err = "WebSocket接続タイムアウト".to_string();
+                    log::warn!("{}", err);
+                    if reconnect_attempt == 1 {
+                        return Err(err.to_string());
+                    }
+                    inner.write().await.is_connected = false;
+                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
+                        break 'reconnect;
+                    }
+                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
+                    continue 'reconnect;
+                }
+            };
 
-        log::info!("Socket Mode WebSocket接続成功");
-        let _ = app_handle.emit("socket-mode-connected", ());
+            log::info!("Socket Mode WebSocket接続成功");
+            backoff_secs = 1;
+            inner.write().await.is_connected = true;
+            let _ = app_handle.emit("socket-mode-connected", ());
 
-        // 監視チャンネル一覧をデバッグ情報として通知
-        let watched_channels_snapshot: Vec<String> = {
-            let r = inner.read().await;
-            let mut v: Vec<String> = r.watched_channels.iter().cloned().collect();
-            v.sort();
-            v
-        };
-        let watched_count = watched_channels_snapshot.len();
-        let channel_ids_str = if watched_count == 0 {
-            "なし ← チャンネルを追加してください".to_string()
-        } else {
-            watched_channels_snapshot.join(", ")
-        };
-        let _ = app_handle.emit(
-            "socket-mode-debug",
-            format!("監視チャンネル: {}件 [{}]", watched_count, channel_ids_str),
-        );
+            // 監視チャンネル一覧をデバッグ情報として通知
+            let watched_channels_snapshot: Vec<String> = {
+                let r = inner.read().await;
+                let mut v: Vec<String> = r.watched_channels.iter().cloned().collect();
+                v.sort();
+                v
+            };
+            let watched_count = watched_channels_snapshot.len();
+            let channel_ids_str = if watched_count == 0 {
+                "なし ← チャンネルを追加してください".to_string()
+            } else {
+                watched_channels_snapshot.join(", ")
+            };
+            let _ = app_handle.emit(
+                "socket-mode-debug",
+                format!("監視チャンネル: {}件 [{}]", watched_count, channel_ids_str),
+            );
 
-        let (mut write, mut read) = ws_stream.split();
-        let mut health_interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
-        health_interval.tick().await; // 最初のtickを消費（即時発火しないようにする）
+            let (mut write, mut read) = ws_stream.split();
+            let mut health_interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
+            health_interval.tick().await;
 
-        loop {
+            let mut exit_reason = SocketInnerExit::Disconnected;
+
+            'inner: loop {
             tokio::select! {
                 _ = health_interval.tick() => {
                     match check_token_valid(&bot_token).await {
@@ -1102,8 +1246,10 @@ impl SlackClientState {
                 _ = cancel_rx.changed() => {
                     if *cancel_rx.borrow() {
                         log::info!("Socket Mode接続をキャンセル");
+                        exit_reason = SocketInnerExit::Cancelled;
                         let _ = write.send(Message::Close(None)).await;
-                        break;
+                        let _ = app_handle.emit("socket-mode-disconnected", ());
+                        break 'inner;
                     }
                 }
                 msg = read.next() => {
@@ -1124,6 +1270,25 @@ impl SlackClientState {
                                 // hello は socket-mode-connected で通知済みのため emit 不要
                                 if msg_type_str != "hello" {
                                     let _ = app_handle.emit("socket-mode-debug", format!("受信: type={}", msg_type_str));
+                                }
+
+                                if socket_msg.msg_type.as_deref() == Some("disconnect") {
+                                    let reason = socket_msg.reason.as_deref().unwrap_or("unknown");
+                                    log::info!("Socket Mode disconnect: reason={}", reason);
+                                    match reason {
+                                        "link_disabled" => {
+                                            exit_reason = SocketInnerExit::LinkDisabled;
+                                            let _ = app_handle.emit(
+                                                "socket-mode-error",
+                                                "App Tokenが無効化されました（link_disabled）。トークンを再生成してください。",
+                                            );
+                                            break 'inner;
+                                        }
+                                        "warning" | "refresh_requested" => {
+                                            break 'inner;
+                                        }
+                                        _ => break 'inner,
+                                    }
                                 }
 
                                 // events_api のメッセージイベントのみ処理
@@ -1253,60 +1418,50 @@ impl SlackClientState {
                                                             (None, None)
                                                         };
 
-                                                        // 画像ファイルの処理
-                                                        let images = if let Some(files) = &event.files {
-                                                            let mut image_list = Vec::new();
+                                                        // 画像URLを収集（取得はバックグラウンドで非同期）
+                                                        let mut image_jobs: Vec<(String, String, Option<String>)> = Vec::new();
+                                                        if let Some(files) = &event.files {
                                                             for file in files {
                                                                 let mime = file.mimetype.as_deref().unwrap_or("");
                                                                 if !mime.starts_with("image/") {
                                                                     continue;
                                                                 }
-                                                                // 複数のURLを優先順に試行
-                                                                let candidate_urls: Vec<&str> = [
+                                                                let url = [
                                                                     file.url_private_download.as_deref(),
                                                                     file.thumb_480.as_deref(),
                                                                     file.thumb_360.as_deref(),
                                                                     file.url_private.as_deref(),
-                                                                ].into_iter().flatten().collect();
-
-                                                                let mut fetched = false;
-                                                                for url in &candidate_urls {
-                                                                    if let Some(data_url) = Self::fetch_image_as_data_url(&bot_token, url, mime).await {
-                                                                        image_list.push(ImageData {
-                                                                            data_url,
-                                                                            name: file.name.clone(),
-                                                                        });
-                                                                        fetched = true;
-                                                                        break;
-                                                                    }
-                                                                }
-                                                                if !fetched {
-                                                                    log::warn!("全URLで画像取得失敗: name={:?}", file.name);
+                                                                ]
+                                                                .into_iter()
+                                                                .flatten()
+                                                                .next();
+                                                                if let Some(url) = url {
+                                                                    image_jobs.push((
+                                                                        url.to_string(),
+                                                                        mime.to_string(),
+                                                                        file.name.clone(),
+                                                                    ));
                                                                 }
                                                             }
-                                                            if image_list.is_empty() { None } else { Some(image_list) }
-                                                        } else {
-                                                            None
-                                                        };
+                                                        }
 
                                                         let has_text = !text.is_empty();
-                                                        let has_images = images.is_some();
+                                                        let has_pending_images = !image_jobs.is_empty();
 
-                                                        if has_text || has_images {
+                                                        if has_text || has_pending_images {
                                                             let message = SlackMessage {
                                                                 text,
                                                                 user: user_name,
                                                                 user_icon,
                                                                 channel: Some(channel.clone()),
-                                                                timestamp: ts,
+                                                                timestamp: ts.clone(),
                                                                 queue_action: Some("addToQueue".to_string()),
                                                                 thread_ts,
                                                                 reply_to_user,
                                                                 reply_to_text,
-                                                                images,
+                                                                images: None,
                                                             };
 
-                                                            // Tauri Eventでフロントエンドに送信
                                                             if let Err(e) = app_handle.emit("add-to-text-queue", &message) {
                                                                 log::error!("メッセージ送信エラー: {}", e);
                                                             } else {
@@ -1315,6 +1470,50 @@ impl SlackClientState {
                                                                 inner.write().await.last_event_at = Some(now);
                                                                 let secs = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
                                                                 let _ = app_handle.emit("slack-last-event", secs);
+                                                            }
+
+                                                            if has_pending_images {
+                                                                let channel_id = channel.clone();
+                                                                let message_ts = ts.clone().unwrap_or_default();
+                                                                let bot_token_spawn = bot_token.clone();
+                                                                let app_handle_spawn = app_handle.clone();
+                                                                tokio::spawn(async move {
+                                                                    let fetch_result = tokio::time::timeout(
+                                                                        IMAGE_FETCH_TIMEOUT,
+                                                                        async {
+                                                                            let mut image_list = Vec::new();
+                                                                            for (url, mime, name) in image_jobs {
+                                                                                if let Some(data_url) =
+                                                                                    SlackClientState::fetch_image_as_data_url(
+                                                                                        &bot_token_spawn,
+                                                                                        &url,
+                                                                                        &mime,
+                                                                                    )
+                                                                                    .await
+                                                                                {
+                                                                                    image_list.push(ImageData {
+                                                                                        data_url,
+                                                                                        name,
+                                                                                    });
+                                                                                }
+                                                                            }
+                                                                            image_list
+                                                                        },
+                                                                    )
+                                                                    .await;
+
+                                                                    if let Ok(images) = fetch_result {
+                                                                        if !images.is_empty() {
+                                                                            let payload = MessageImagesReady {
+                                                                                channel: channel_id,
+                                                                                timestamp: message_ts,
+                                                                                images,
+                                                                            };
+                                                                            let _ = app_handle_spawn
+                                                                                .emit("message-images-ready", &payload);
+                                                                        }
+                                                                    }
+                                                                });
                                                             }
                                                         } else {
                                                             let _ = app_handle.emit("socket-mode-debug", format!(
@@ -1337,23 +1536,50 @@ impl SlackClientState {
                         }
                         Some(Ok(Message::Close(_))) => {
                             log::info!("Socket Mode WebSocket接続クローズ");
-                            break;
+                            break 'inner;
                         }
                         Some(Err(e)) => {
                             log::error!("WebSocket受信エラー: {}", e);
-                            break;
+                            break 'inner;
                         }
                         None => {
                             log::info!("WebSocketストリーム終了");
-                            break;
+                            break 'inner;
                         }
                         _ => {}
                     }
                 }
             }
+            }
+
+            inner.write().await.is_connected = false;
+            if !matches!(exit_reason, SocketInnerExit::Cancelled) {
+                let _ = app_handle.emit("socket-mode-disconnected", ());
+            }
+
+            match exit_reason {
+                SocketInnerExit::Cancelled | SocketInnerExit::LinkDisabled => {
+                    break 'reconnect;
+                }
+                SocketInnerExit::Disconnected => {
+                    if *cancel_rx.borrow() {
+                        break 'reconnect;
+                    }
+                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
+                        break 'reconnect;
+                    }
+                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
+                    continue 'reconnect;
+                }
+            }
         }
 
-        inner.write().await.is_connected = false;
+        {
+            let mut inner_guard = inner.write().await;
+            inner_guard.is_connected = false;
+            inner_guard.socket_cancel = None;
+            inner_guard.socket_task = None;
+        }
         Ok(())
     }
 
@@ -1362,11 +1588,7 @@ impl SlackClientState {
     /// リダイレクト時にAuthorizationヘッダーが別ホストに転送されないため、
     /// リダイレクトを無効化し、Locationヘッダーを取得して直接フェッチする。
     async fn fetch_image_as_data_url(bot_token: &str, url: &str, mimetype: &str) -> Option<String> {
-        let client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(HTTP_TIMEOUT)
-            .build()
-            .ok()?;
+        let client = image_http_client();
 
         // Step 1: Bearer認証付きでリクエスト → リダイレクトURLを取得
         let resp = client
@@ -1384,11 +1606,7 @@ impl SlackClientState {
                 .and_then(|v| v.to_str().ok())?;
             log::debug!("画像リダイレクト先: {}", &redirect_url[..redirect_url.len().min(80)]);
 
-            let cdn_client = reqwest::Client::builder()
-                .timeout(HTTP_TIMEOUT)
-                .build()
-                .ok()?;
-            let img_resp = cdn_client.get(redirect_url).send().await.ok()?;
+            let img_resp = http_client().get(redirect_url).send().await.ok()?;
             if !img_resp.status().is_success() {
                 log::warn!("画像リダイレクト先ダウンロード失敗: status={}", img_resp.status());
                 return None;

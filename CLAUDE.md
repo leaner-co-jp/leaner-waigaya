@@ -59,7 +59,7 @@ cd src-tauri && cargo check  # Rustのコンパイルエラーだけ素早く確
 
 ### メッセージ表示フロー
 
-Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Display側で `TextQueue`(`src/lib/TextQueue.ts`) に蓄積 → `DisplayWindow.tsx` でFramer Motionアニメーション付き表示
+Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Control側 `TextQueue` に蓄積 → `display-slack-message` で Display へ → `DisplayWindow.tsx` でFramer Motionアニメーション付き表示。画像付きメッセージはテキストを先に `add-to-text-queue`、画像は非同期取得後 `message-images-ready` → `display-message-images-update` で追送（5秒タイムアウト）
 
 ## Gotchas
 
@@ -77,6 +77,9 @@ Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Displ
 - **ヘルスチェック**: Socket Modeループ内で5分ごとに `auth.test` を実行。失敗時はLogViewerに警告を表示
 - **slack-last-event イベント**: メッセージ/リアクション受信時にemitされ、フロントエンドで「最後のイベント受信: X分前」を表示する。30分以上未受信の場合はEvent Subscriptions確認の警告を表示
 - **Slackエラー変換**: `translate_slack_error()` (slack_client.rs) が `socket_mode_not_enabled`/`invalid_auth`/`missing_scope` 等のエラーコードを日本語メッセージに変換
+- **Socket Mode 再接続イベント**: `socket-mode-connected` / `socket-mode-disconnected` / `socket-mode-reconnecting`（試行回数: number）/ `socket-mode-error`。UIの接続状態は `socket-mode-connected` で true、`disconnected`/`error` で false
+- **画像追送イベント**: `message-images-ready`（Rust→Control）、`display-message-images-update`（Control→Display）。相関キーは `(channel, timestamp)` の組
+- **トークン更新タイミング**: `update_config` でトークンを変更しても、実行中の Socket Mode には即反映されない。次回の再接続（切断→接続、または自動再接続）から新トークンが使われる
 
 ## コーディング規約
 

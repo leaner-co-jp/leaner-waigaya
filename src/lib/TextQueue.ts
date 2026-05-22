@@ -1,4 +1,4 @@
-import { SlackMessage, ImageData } from './types';
+import { SlackMessage, ImageData, DisplayMessageImagesUpdate } from './types';
 
 export interface QueueItem {
   id: number;
@@ -45,6 +45,7 @@ export class TextQueue {
 
   // コールバック関数
   private onMessageSend: ((message: SlackMessage) => void) | null = null;
+  private onImagesUpdated: ((update: DisplayMessageImagesUpdate) => void) | null = null;
   private onUIUpdate: ((queue: QueueItem[], currentIndex: number, isPlaying: boolean) => void) | null = null;
 
   constructor() {
@@ -55,6 +56,28 @@ export class TextQueue {
   // コールバック設定
   setMessageCallback(callback: (message: SlackMessage) => void): void {
     this.onMessageSend = callback;
+  }
+
+  setImagesUpdatedCallback(callback: (update: DisplayMessageImagesUpdate) => void): void {
+    this.onImagesUpdated = callback;
+  }
+
+  attachImages(channel: string, slackTs: string, images: ImageData[]): void {
+    const idx = this.queue.findIndex(
+      (item) => item.channel === channel && item.slackTs === slackTs,
+    );
+    if (idx === -1) {
+      console.log('📷 画像追送スキップ: キューに該当メッセージなし', { channel, slackTs });
+      return;
+    }
+
+    this.queue[idx] = { ...this.queue[idx], images };
+    this.updateUI();
+
+    if (this.currentIndex === idx && this.onImagesUpdated) {
+      this.onImagesUpdated({ channel, timestamp: slackTs, images });
+      console.log('📷 表示中メッセージに画像を追送:', { channel, slackTs });
+    }
   }
 
   setUIUpdateCallback(callback: (queue: QueueItem[], currentIndex: number, isPlaying: boolean) => void): void {

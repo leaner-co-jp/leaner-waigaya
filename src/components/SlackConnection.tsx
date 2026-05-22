@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { listen } from "@tauri-apps/api/event"
 import { openUrl } from "@tauri-apps/plugin-opener"
-import { SlackConfig, SlackMessage, SlackReactionEvent } from "../lib/types"
+import { SlackConfig, SlackMessage, SlackReactionEvent, MessageImagesReady } from "../lib/types"
 import { tauriAPI } from "../lib/tauri-api"
 import { ChannelManager } from "./ChannelManager"
 import { DisplaySettingsComponent, DisplaySettings } from "./DisplaySettings"
@@ -67,6 +67,12 @@ export const SlackConnection: React.FC = () => {
       tauriAPI.displaySlackMessage(message)
     })
 
+    textQueue.setImagesUpdatedCallback((update) => {
+      tauriAPI.displayMessageImagesUpdate(update)
+    })
+
+    let unlistenImagesReady: (() => void) | null = null
+
     // SlackメッセージをTextQueueに追加する要求を受信（直接listenでReact Strict Mode対応）
     listen<SlackMessage>('add-to-text-queue', (event) => {
       const message = event.payload
@@ -94,9 +100,21 @@ export const SlackConnection: React.FC = () => {
       addLog("error", "メッセージ", `❌ add-to-text-queue listen失敗: ${err}`)
     })
 
+    listen<MessageImagesReady>('message-images-ready', (event) => {
+      const { channel, timestamp, images } = event.payload
+      textQueue.attachImages(channel, timestamp, images)
+      addLog("info", "メッセージ", `画像追送: ch=${channel} ts=${timestamp}`)
+    }).then((fn) => {
+      if (cancelled) { fn(); return }
+      unlistenImagesReady = fn
+    }).catch((err) => {
+      addLog("error", "メッセージ", `❌ message-images-ready listen失敗: ${err}`)
+    })
+
     return () => {
       cancelled = true
       if (unlistenAddToQueue) unlistenAddToQueue()
+      if (unlistenImagesReady) unlistenImagesReady()
       textQueue.clear()
     }
   }, [addLog])
@@ -117,10 +135,20 @@ export const SlackConnection: React.FC = () => {
         addLog("info", "絵文字", "カスタム絵文字データ更新")),
       listen<SlackReactionEvent>('slack-reaction', (e) =>
         addLog("info", "リアクション", `:${e.payload.reaction}: by ${e.payload.user}`)),
-      listen('socket-mode-connected', () =>
-        addLog("info", "接続", "✅ Socket Mode WebSocket接続成功")),
-      listen<string>('socket-mode-error', (e) =>
-        addLog("error", "接続", `❌ Socket Mode失敗: ${e.payload}`)),
+      listen('socket-mode-connected', () => {
+        setIsConnected(true)
+        addLog("info", "接続", "✅ Socket Mode WebSocket接続成功")
+      }),
+      listen('socket-mode-disconnected', () => {
+        setIsConnected(false)
+        addLog("warn", "接続", "⚠️ Socket Mode切断")
+      }),
+      listen<number>('socket-mode-reconnecting', (e) =>
+        addLog("info", "接続", `🔄 再接続中... (${e.payload}回目)`)),
+      listen<string>('socket-mode-error', (e) => {
+        setIsConnected(false)
+        addLog("error", "接続", `❌ Socket Mode失敗: ${e.payload}`)
+      }),
       listen<string>('socket-mode-debug', (e) =>
         addLog("info", "接続", `[WS] ${e.payload}`)),
       listen<number>('slack-last-event', (e) =>
@@ -191,8 +219,7 @@ export const SlackConnection: React.FC = () => {
             testConfig
           )
           if (connectResult.success) {
-            setStatus("✅ Slack接続成功")
-            setIsConnected(true)
+            setStatus("✅ Slack接続成功（WebSocket接続待ち）")
             setShowConnectionDialog(false)
             addLog("info", "接続", "Slack接続成功")
             console.log("🎯 Slack接続完了")

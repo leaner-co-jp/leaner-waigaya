@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { SlackMessage, ReactionData, SlackReactionEvent } from "../lib/types"
+import { SlackMessage, ReactionData, SlackReactionEvent, DisplayMessageImagesUpdate } from "../lib/types"
 import { tauriAPI } from "../lib/tauri-api"
 import { getDisplaySettings, DisplaySettings } from "./DisplaySettings"
 import { emojiConverter } from "../lib/emoji-converter"
@@ -69,8 +69,23 @@ export const DisplayWindow: React.FC = () => {
       })
     }
 
+    const handleImagesUpdate = (update: DisplayMessageImagesUpdate) => {
+      setMessages((prev) => {
+        const idx = prev.findIndex(
+          (m) => m.channel === update.channel && m.timestamp === update.timestamp,
+        )
+        if (idx === -1) return prev
+        const updated = [...prev]
+        updated[idx] = { ...updated[idx], images: update.images }
+        return updated
+      })
+    }
+
     const cleanupMessageListener =
       tauriAPI.onDisplaySlackMessage(handleMessage)
+
+    const cleanupImagesUpdateListener =
+      tauriAPI.onDisplayMessageImagesUpdate(handleImagesUpdate)
 
     const cleanupReactionListener =
       tauriAPI.onSlackReaction(handleReaction)
@@ -102,6 +117,7 @@ export const DisplayWindow: React.FC = () => {
 
     return () => {
       cleanupMessageListener()
+      cleanupImagesUpdateListener()
       cleanupReactionListener()
       cleanupEmojiListener()
       cleanupSettingsListener()

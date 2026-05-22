@@ -3,7 +3,7 @@ import { listen, emit } from '@tauri-apps/api/event';
 import {
   SlackConfig, SlackConnectionResult, ConfigSaveResult, ConfigLoadResult,
   SlackMessage, ChannelListResult, ChannelActionResult, SlackChannel,
-  EmojiListResult, SlackReactionEvent
+  EmojiListResult, SlackReactionEvent, DisplayMessageImagesUpdate
 } from './types';
 
 /**
@@ -25,10 +25,21 @@ export const tauriAPI = {
   displaySlackMessage: (message: SlackMessage): void => {
     emit('display-slack-message', message);
   },
+  displayMessageImagesUpdate: (update: DisplayMessageImagesUpdate): void => {
+    emit('display-message-images-update', update);
+  },
   onDisplaySlackMessage: (callback: (message: SlackMessage) => void): (() => void) => {
     let unlisten: (() => void) | null = null;
     let cancelled = false;
     listen<SlackMessage>('display-slack-message', (event) => {
+      callback(event.payload);
+    }).then(fn => { if (cancelled) { fn(); } else { unlisten = fn; } });
+    return () => { cancelled = true; if (unlisten) unlisten(); };
+  },
+  onDisplayMessageImagesUpdate: (callback: (update: DisplayMessageImagesUpdate) => void): (() => void) => {
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+    listen<DisplayMessageImagesUpdate>('display-message-images-update', (event) => {
       callback(event.payload);
     }).then(fn => { if (cancelled) { fn(); } else { unlisten = fn; } });
     return () => { cancelled = true; if (unlisten) unlisten(); };

@@ -39,6 +39,18 @@ export interface SlackMessage {
   images?: ImageData[];
 }
 
+export interface MessageImagesReady {
+  channel: string;
+  timestamp: string;
+  images: ImageData[];
+}
+
+export interface DisplayMessageImagesUpdate {
+  channel: string;
+  timestamp: string;
+  images: ImageData[];
+}
+
 export interface SlackChannel {
   id: string;
   name: string;
