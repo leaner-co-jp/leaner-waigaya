@@ -74,6 +74,9 @@ Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Displ
 - **外部URLを開く**: `openUrl` from `@tauri-apps/plugin-opener`（Rust側 `tauri-plugin-opener = "2"` と対応）
 - **Slack message subtype**: `message` タイプイベントには `bot_message`/`message_changed`/`message_deleted` 等のsubtypeがある。`SlackEvent` 構造体に `subtype: Option<String>` フィールドが必要
 - **デバッグログ経路**: Rust → フロントエンドのデバッグ情報は `socket-mode-debug`（String payload）イベント経由でLogViewerに届く
+- **ヘルスチェック**: Socket Modeループ内で5分ごとに `auth.test` を実行。失敗時はLogViewerに警告を表示
+- **slack-last-event イベント**: メッセージ/リアクション受信時にemitされ、フロントエンドで「最後のイベント受信: X分前」を表示する。30分以上未受信の場合はEvent Subscriptions確認の警告を表示
+- **Slackエラー変換**: `translate_slack_error()` (slack_client.rs) が `socket_mode_not_enabled`/`invalid_auth`/`missing_scope` 等のエラーコードを日本語メッセージに変換
 
 ## コーディング規約
 
