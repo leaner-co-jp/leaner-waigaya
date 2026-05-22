@@ -74,9 +74,9 @@ export class TextQueue {
     this.queue[idx] = { ...this.queue[idx], images };
     this.updateUI();
 
-    if (this.currentIndex === idx && this.onImagesUpdated) {
+    if (this.onImagesUpdated) {
       this.onImagesUpdated({ channel, timestamp: slackTs, images });
-      console.log('📷 表示中メッセージに画像を追送:', { channel, slackTs });
+      console.log('📷 画像をDisplayへ追送:', { channel, slackTs });
     }
   }
 

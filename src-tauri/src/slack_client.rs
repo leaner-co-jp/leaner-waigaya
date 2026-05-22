@@ -368,6 +368,7 @@ struct SlackClientInner {
     current_channel_name: String,
     socket_cancel: Option<tokio::sync::watch::Sender<bool>>,
     socket_task: Option<tokio::task::JoinHandle<()>>,
+    socket_generation: u64,
     last_event_at: Option<std::time::SystemTime>,
 }
 
@@ -383,6 +384,7 @@ impl SlackClientState {
                 current_channel_name: "waigaya".to_string(),
                 socket_cancel: None,
                 socket_task: None,
+                socket_generation: 0,
                 last_event_at: None,
             })),
         }
@@ -530,6 +532,11 @@ impl SlackClientState {
         }
 
         let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+        let generation = {
+            let mut inner = self.inner.write().await;
+            inner.socket_generation = inner.socket_generation.wrapping_add(1);
+            inner.socket_generation
+        };
         let handle = tokio::spawn(async move {
             if let Err(e) = Self::run_socket_mode(
                 inner_clone,
@@ -537,6 +544,7 @@ impl SlackClientState {
                 app_token_clone,
                 bot_token_clone,
                 cancel_rx,
+                generation,
             ).await {
                 log::warn!("Socket Mode接続失敗（基本機能は利用可能）: {}", e);
                 let _ = app_handle_for_error.emit("socket-mode-error", e.to_string());
@@ -1061,12 +1069,38 @@ impl SlackClientState {
         }
     }
 
+    enum SocketRetryOutcome {
+        ContinueReconnect,
+        BreakReconnect,
+    }
+
+    /// 再接続ループ内の接続失敗を処理。初回試行のみ `Err` を返して呼び出し元へ伝播する。
+    async fn on_socket_connect_failure(
+        inner: &Arc<RwLock<SlackClientInner>>,
+        cancel_rx: &mut tokio::sync::watch::Receiver<bool>,
+        backoff_secs: &mut u64,
+        reconnect_attempt: u32,
+        err: String,
+    ) -> Result<SocketRetryOutcome, String> {
+        log::warn!("{}", err);
+        if reconnect_attempt == 1 {
+            return Err(err);
+        }
+        inner.write().await.is_connected = false;
+        if Self::backoff_wait(cancel_rx, *backoff_secs).await {
+            return Ok(SocketRetryOutcome::BreakReconnect);
+        }
+        *backoff_secs = (*backoff_secs * 2).min(MAX_BACKOFF_SECS);
+        Ok(SocketRetryOutcome::ContinueReconnect)
+    }
+
     async fn run_socket_mode(
         inner: Arc<RwLock<SlackClientInner>>,
         app_handle: tauri::AppHandle,
         app_token: String,
         bot_token: String,
         mut cancel_rx: tokio::sync::watch::Receiver<bool>,
+        generation: u64,
     ) -> Result<(), String> {
         use futures_util::{SinkExt, StreamExt};
         use tokio_tungstenite::tungstenite::Message;
@@ -1105,63 +1139,75 @@ impl SlackClientState {
             {
                 Ok(r) => r,
                 Err(e) => {
-                    let err = format!("HTTP通信エラー: {}", e);
-                    log::warn!("apps.connections.open失敗: {}", err);
-                    if reconnect_attempt == 1 {
-                        return Err(err);
+                    match Self::on_socket_connect_failure(
+                        &inner,
+                        &mut cancel_rx,
+                        &mut backoff_secs,
+                        reconnect_attempt,
+                        format!("apps.connections.open HTTP通信エラー: {}", e),
+                    )
+                    .await
+                    {
+                        Err(e) => return Err(e),
+                        Ok(SocketRetryOutcome::BreakReconnect) => break 'reconnect,
+                        Ok(SocketRetryOutcome::ContinueReconnect) => continue 'reconnect,
                     }
-                    inner.write().await.is_connected = false;
-                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
-                        break 'reconnect;
-                    }
-                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
-                    continue 'reconnect;
                 }
             };
 
             let result: AppsConnectionsOpenResponse = match resp.json().await {
                 Ok(r) => r,
                 Err(e) => {
-                    let err = format!("レスポンス解析エラー: {}", e);
-                    if reconnect_attempt == 1 {
-                        return Err(err);
+                    match Self::on_socket_connect_failure(
+                        &inner,
+                        &mut cancel_rx,
+                        &mut backoff_secs,
+                        reconnect_attempt,
+                        format!("apps.connections.open レスポンス解析エラー: {}", e),
+                    )
+                    .await
+                    {
+                        Err(e) => return Err(e),
+                        Ok(SocketRetryOutcome::BreakReconnect) => break 'reconnect,
+                        Ok(SocketRetryOutcome::ContinueReconnect) => continue 'reconnect,
                     }
-                    inner.write().await.is_connected = false;
-                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
-                        break 'reconnect;
-                    }
-                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
-                    continue 'reconnect;
                 }
             };
 
             if !result.ok {
                 let code = result.error.as_deref().unwrap_or("unknown");
                 let err = translate_slack_error(code);
-                if reconnect_attempt == 1 {
-                    return Err(err);
+                match Self::on_socket_connect_failure(
+                    &inner,
+                    &mut cancel_rx,
+                    &mut backoff_secs,
+                    reconnect_attempt,
+                    format!("apps.connections.open APIエラー: {}", err),
+                )
+                .await
+                {
+                    Err(e) => return Err(e),
+                    Ok(SocketRetryOutcome::BreakReconnect) => break 'reconnect,
+                    Ok(SocketRetryOutcome::ContinueReconnect) => continue 'reconnect,
                 }
-                log::warn!("apps.connections.open APIエラー: {}", err);
-                inner.write().await.is_connected = false;
-                if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
-                    break 'reconnect;
-                }
-                backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
-                continue 'reconnect;
             }
 
             let ws_url = match result.url {
                 Some(url) => url,
                 None => {
-                    if reconnect_attempt == 1 {
-                        return Err("WebSocket URLが取得できません".to_string());
+                    match Self::on_socket_connect_failure(
+                        &inner,
+                        &mut cancel_rx,
+                        &mut backoff_secs,
+                        reconnect_attempt,
+                        "WebSocket URLが取得できません".to_string(),
+                    )
+                    .await
+                    {
+                        Err(e) => return Err(e),
+                        Ok(SocketRetryOutcome::BreakReconnect) => break 'reconnect,
+                        Ok(SocketRetryOutcome::ContinueReconnect) => continue 'reconnect,
                     }
-                    inner.write().await.is_connected = false;
-                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
-                        break 'reconnect;
-                    }
-                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
-                    continue 'reconnect;
                 }
             };
             log::info!("Socket Mode WebSocket URL取得成功");
@@ -1174,35 +1220,40 @@ impl SlackClientState {
             {
                 Ok(Ok(stream)) => stream,
                 Ok(Err(e)) => {
-                    let err = format!("WebSocket接続エラー: {}", e);
-                    log::warn!("{}", err);
-                    if reconnect_attempt == 1 {
-                        return Err(err);
+                    match Self::on_socket_connect_failure(
+                        &inner,
+                        &mut cancel_rx,
+                        &mut backoff_secs,
+                        reconnect_attempt,
+                        format!("WebSocket接続エラー: {}", e),
+                    )
+                    .await
+                    {
+                        Err(e) => return Err(e),
+                        Ok(SocketRetryOutcome::BreakReconnect) => break 'reconnect,
+                        Ok(SocketRetryOutcome::ContinueReconnect) => continue 'reconnect,
                     }
-                    inner.write().await.is_connected = false;
-                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
-                        break 'reconnect;
-                    }
-                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
-                    continue 'reconnect;
                 }
                 Err(_) => {
-                    let err = "WebSocket接続タイムアウト".to_string();
-                    log::warn!("{}", err);
-                    if reconnect_attempt == 1 {
-                        return Err(err.to_string());
+                    match Self::on_socket_connect_failure(
+                        &inner,
+                        &mut cancel_rx,
+                        &mut backoff_secs,
+                        reconnect_attempt,
+                        "WebSocket接続タイムアウト".to_string(),
+                    )
+                    .await
+                    {
+                        Err(e) => return Err(e),
+                        Ok(SocketRetryOutcome::BreakReconnect) => break 'reconnect,
+                        Ok(SocketRetryOutcome::ContinueReconnect) => continue 'reconnect,
                     }
-                    inner.write().await.is_connected = false;
-                    if Self::backoff_wait(&mut cancel_rx, backoff_secs).await {
-                        break 'reconnect;
-                    }
-                    backoff_secs = (backoff_secs * 2).min(MAX_BACKOFF_SECS);
-                    continue 'reconnect;
                 }
             };
 
             log::info!("Socket Mode WebSocket接続成功");
             backoff_secs = 1;
+            reconnect_attempt = 0;
             inner.write().await.is_connected = true;
             let _ = app_handle.emit("socket-mode-connected", ());
 
@@ -1577,8 +1628,10 @@ impl SlackClientState {
         {
             let mut inner_guard = inner.write().await;
             inner_guard.is_connected = false;
-            inner_guard.socket_cancel = None;
-            inner_guard.socket_task = None;
+            if inner_guard.socket_generation == generation {
+                inner_guard.socket_cancel = None;
+                inner_guard.socket_task = None;
+            }
         }
         Ok(())
     }
