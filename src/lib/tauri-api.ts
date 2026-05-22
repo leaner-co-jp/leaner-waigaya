@@ -27,24 +27,27 @@ export const tauriAPI = {
   },
   onDisplaySlackMessage: (callback: (message: SlackMessage) => void): (() => void) => {
     let unlisten: (() => void) | null = null;
+    let cancelled = false;
     listen<SlackMessage>('display-slack-message', (event) => {
       callback(event.payload);
-    }).then(fn => { unlisten = fn; });
-    return () => { if (unlisten) unlisten(); };
+    }).then(fn => { if (cancelled) { fn(); } else { unlisten = fn; } });
+    return () => { cancelled = true; if (unlisten) unlisten(); };
   },
   onAddToTextQueue: (callback: (message: SlackMessage) => void): (() => void) => {
     let unlisten: (() => void) | null = null;
+    let cancelled = false;
     listen<SlackMessage>('add-to-text-queue', (event) => {
       callback(event.payload);
-    }).then(fn => { unlisten = fn; });
-    return () => { if (unlisten) unlisten(); };
+    }).then(fn => { if (cancelled) { fn(); } else { unlisten = fn; } });
+    return () => { cancelled = true; if (unlisten) unlisten(); };
   },
   onSlackReaction: (callback: (event: SlackReactionEvent) => void): (() => void) => {
     let unlisten: (() => void) | null = null;
+    let cancelled = false;
     listen<SlackReactionEvent>('slack-reaction', (event) => {
       callback(event.payload);
-    }).then(fn => { unlisten = fn; });
-    return () => { if (unlisten) unlisten(); };
+    }).then(fn => { if (cancelled) { fn(); } else { unlisten = fn; } });
+    return () => { cancelled = true; if (unlisten) unlisten(); };
   },
   // チャンネル管理
   slackGetChannels: (): Promise<ChannelListResult> =>
@@ -61,10 +64,11 @@ export const tauriAPI = {
     invoke('get_current_channel_name'),
   onChannelUpdated: (callback: (channelName: string) => void): (() => void) => {
     let unlisten: (() => void) | null = null;
+    let cancelled = false;
     listen<string>('channel-updated', (event) => {
       callback(event.payload);
-    }).then(fn => { unlisten = fn; });
-    return () => { if (unlisten) unlisten(); };
+    }).then(fn => { if (cancelled) { fn(); } else { unlisten = fn; } });
+    return () => { cancelled = true; if (unlisten) unlisten(); };
   },
 
   // ユーザー管理
@@ -74,10 +78,11 @@ export const tauriAPI = {
     invoke('get_users_count'),
   onUserDataUpdated: (callback: (count: number) => void): (() => void) => {
     let unlisten: (() => void) | null = null;
+    let cancelled = false;
     listen<number>('user-data-updated', (event) => {
       callback(event.payload);
-    }).then(fn => { unlisten = fn; });
-    return () => { if (unlisten) unlisten(); };
+    }).then(fn => { if (cancelled) { fn(); } else { unlisten = fn; } });
+    return () => { cancelled = true; if (unlisten) unlisten(); };
   },
   // 絵文字管理
   getCustomEmojis: (): Promise<EmojiListResult> =>
@@ -86,10 +91,11 @@ export const tauriAPI = {
     invoke('save_emojis_data', { emojisData: emojis }),
   onCustomEmojisData: (callback: (emojis: any) => void): (() => void) => {
     let unlisten: (() => void) | null = null;
+    let cancelled = false;
     listen<any>('custom-emojis-data', (event) => {
       callback(event.payload);
-    }).then(fn => { unlisten = fn; });
-    return () => { if (unlisten) unlisten(); };
+    }).then(fn => { if (cancelled) { fn(); } else { unlisten = fn; } });
+    return () => { cancelled = true; if (unlisten) unlisten(); };
   },
 
   getEmojisLastUpdated: (): Promise<number | null> =>
@@ -107,9 +113,10 @@ export const tauriAPI = {
   },
   onDisplaySettingsUpdate: (callback: () => void): (() => void) => {
     let unlisten: (() => void) | null = null;
+    let cancelled = false;
     listen('display-settings-update', () => {
       callback();
-    }).then(fn => { unlisten = fn; });
-    return () => { if (unlisten) unlisten(); };
+    }).then(fn => { if (cancelled) { fn(); } else { unlisten = fn; } });
+    return () => { cancelled = true; if (unlisten) unlisten(); };
   },
 };
