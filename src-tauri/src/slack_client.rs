@@ -1086,6 +1086,7 @@ impl SlackClientState {
                 _ = cancel_rx.changed() => {
                     if *cancel_rx.borrow() {
                         log::info!("Socket Mode接続をキャンセル");
+                        let _ = write.send(Message::Close(None)).await;
                         break;
                     }
                 }

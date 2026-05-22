@@ -51,6 +51,12 @@ pub fn run() {
             slack::get_emoji_url,
             slack::get_emojis_last_updated,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                let state = app_handle.state::<slack_client::SlackClientState>();
+                tauri::async_runtime::block_on(state.disconnect());
+            }
+        });
 }
