@@ -78,6 +78,7 @@ Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Contr
 - **slack-last-event イベント**: メッセージ/リアクション受信時にemitされ、フロントエンドで「最後のイベント受信: X分前」を表示する。30分以上未受信の場合はEvent Subscriptions確認の警告を表示
 - **Slackエラー変換**: `translate_slack_error()` (slack_client.rs) が `socket_mode_not_enabled`/`invalid_auth`/`missing_scope` 等のエラーコードを日本語メッセージに変換
 - **Socket Mode 再接続イベント**: `socket-mode-connected` / `socket-mode-disconnected` / `socket-mode-reconnecting`（試行回数: number）/ `socket-mode-error`。UIの接続状態は `socket-mode-connected` で true、`disconnected`/`error` で false
+- **多重起動の検知**: Socket Mode の `hello` に含まれる `num_connections`（このアプリが張っている接続の総数）を `socket-mode-connections`（number payload）で通知する。2以上なら同じトークンで他のユーザーが起動しており、Slackはイベントを接続のどれか1つにしか配信しないためメッセージが分散する。判定できるのは接続確立時のみ（先に接続していた側は次の再接続まで気づけない）
 - **画像追送イベント**: `message-images-ready`（Rust→Control）、`display-message-images-update`（Control→Display）。相関キーは `(channel, timestamp)` の組
 - **トークン更新タイミング**: `update_config` でトークンを変更しても、実行中の Socket Mode には即反映されない。次回の再接続（切断→接続、または自動再接続）から新トークンが使われる
 

@@ -46,6 +46,7 @@ export const SlackConnection: React.FC = () => {
   const [showEmojiManager, setShowEmojiManager] = useState(false)
   const [showChannelManager, setShowChannelManager] = useState(false)
   const [lastEventAt, setLastEventAt] = useState<Date | null>(null)
+  const [connectionCount, setConnectionCount] = useState<number | null>(null)
   const { logs, addLog, clearLogs } = useLogger()
 
   // 初期化時に保存された設定を読み込み
@@ -141,12 +142,22 @@ export const SlackConnection: React.FC = () => {
       }),
       listen('socket-mode-disconnected', () => {
         setIsConnected(false)
+        setConnectionCount(null)
         addLog("warn", "接続", "⚠️ Socket Mode切断")
+      }),
+      listen<number>('socket-mode-connections', (e) => {
+        setConnectionCount(e.payload)
+        if (e.payload > 1) {
+          addLog("warn", "接続", `⚠️ 同じトークンで${e.payload}台が接続中（メッセージが分散します）`)
+        } else {
+          addLog("info", "接続", "接続数: 1（このMacのみ）")
+        }
       }),
       listen<number>('socket-mode-reconnecting', (e) =>
         addLog("info", "接続", `🔄 再接続中... (${e.payload}回目)`)),
       listen<string>('socket-mode-error', (e) => {
         setIsConnected(false)
+        setConnectionCount(null)
         addLog("error", "接続", `❌ Socket Mode失敗: ${e.payload}`)
       }),
       listen<string>('socket-mode-debug', (e) =>
@@ -419,6 +430,8 @@ export const SlackConnection: React.FC = () => {
   const lastEventWarning = isConnected && lastEventAt &&
     Date.now() - lastEventAt.getTime() > 30 * 60 * 1000
 
+  const multiConnectionWarning = isConnected && connectionCount !== null && connectionCount > 1
+
   return (
     <div className="container max-w-xl mx-auto bg-white p-5 rounded-lg shadow-lg">
       <h1 className="text-gray-800 mb-5 text-xl font-bold">
@@ -459,6 +472,18 @@ export const SlackConnection: React.FC = () => {
               {lastEventWarning ? "⚠️" : "📨"}
               最後のイベント受信: {formatLastEvent(lastEventAt)}
               {lastEventWarning && " — Event Subscriptions がオフになっていないか確認してください"}
+            </div>
+          )}
+          {multiConnectionWarning && (
+            <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <div className="font-medium">
+                ⚠️ 同じトークンで他に{connectionCount! - 1}台のWaigayaが接続しています
+              </div>
+              <div className="mt-1 leading-relaxed">
+                Slackのイベントは複数の接続のうち<strong>どれか1つにしか届きません</strong>。
+                このままだとメッセージが各Waigayaに分散して、一部がこの画面に流れてきません。
+                他のWaigayaを終了してもらうか、別々のSlack Appのトークンを使ってください。
+              </div>
             </div>
           )}
         </div>

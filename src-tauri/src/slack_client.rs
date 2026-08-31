@@ -234,6 +234,9 @@ struct SocketModeMessage {
     reason: Option<String>,
     envelope_id: Option<String>,
     payload: Option<SocketModePayload>,
+    /// hello に含まれる、このアプリが現在張っている Socket Mode 接続の本数
+    #[serde(default)]
+    num_connections: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1318,8 +1321,15 @@ impl SlackClientState {
                                 // 診断: 受信したSocket Modeメッセージタイプをログ
                                 let msg_type_str = socket_msg.msg_type.as_deref().unwrap_or("unknown");
                                 log::info!("Socket Mode受信: type={}", msg_type_str);
-                                // hello は socket-mode-connected で通知済みのため emit 不要
-                                if msg_type_str != "hello" {
+                                // hello 自体は socket-mode-connected で通知済みのため debug emit は不要。
+                                // 代わりに接続数を通知する（同一トークンでの多重起動検知）
+                                if msg_type_str == "hello" {
+                                    let conns = socket_msg.num_connections.unwrap_or(1);
+                                    if conns > 1 {
+                                        log::warn!("同一アプリで Socket Mode 接続が {} 本張られています", conns);
+                                    }
+                                    let _ = app_handle.emit("socket-mode-connections", conns);
+                                } else {
                                     let _ = app_handle.emit("socket-mode-debug", format!("受信: type={}", msg_type_str));
                                 }
 
