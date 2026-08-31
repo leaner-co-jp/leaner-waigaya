@@ -64,7 +64,7 @@ Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Contr
 ## Gotchas
 
 - **macOS専用**: `transparent` + `macOSPrivateApi: true` はmacOSのみ有効。他OSでは透過表示が動作しない
-- **Auto-updater**: GitHub Releases の `latest.json` をエンドポイントとして自動更新。ビルド時は minisign 秘密鍵が必要（`tauri signer generate` で生成）
+- **Auto-updater**: GitHub Releases の `latest.json` をエンドポイントとして自動更新。ビルド時は minisign 秘密鍵が必要（`tauri signer generate` で生成）。`ControlApp.tsx` が起動時にチェックし、更新があれば**同意を求めずダウンロード・適用して自動で再起動する**（古いバージョンが残ると多重起動の検知など新しい診断が効かないため）。失敗時は起動を止めず、バナーと再試行ボタンを出す
 - **ポート固定**: Vite は `1420` をstrict使用。`tauri:dev` 前に他プロセスが占有していると起動失敗する
 - **HMRポート**: Vite HMR はポート `1421` も使用する（`vite.config.ts` で設定）
 - **データ保存先**: 設定・ユーザー・絵文字データは `~/Library/Application Support/jp.co.leaner.waigaya/` に保存（`slack-config.json`, `users.json`, `emojis.json`）
