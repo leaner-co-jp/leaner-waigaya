@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, emit } from '@tauri-apps/api/event';
+import { getVersion } from '@tauri-apps/api/app';
 import {
   SlackConfig, SlackConnectionResult, ConfigSaveResult, ConfigLoadResult,
   SlackMessage, ChannelListResult, ChannelActionResult, SlackChannel,
@@ -11,6 +12,9 @@ import {
  * Tauri の invoke() / listen() をラップして統一的なインターフェースを提供する
  */
 export const tauriAPI = {
+  // アプリ情報
+  getAppVersion: (): Promise<string> => getVersion(),
+
   // 接続管理
   slackConnect: (config: SlackConfig): Promise<SlackConnectionResult> =>
     invoke('slack_connect', { config }),

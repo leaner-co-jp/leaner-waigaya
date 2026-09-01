@@ -13,10 +13,13 @@ interface DisplayMessage extends SlackMessage {
 export const DisplayWindow: React.FC = () => {
   const [messages, setMessages] = useState<DisplayMessage[]>([])
   const [channelName, setChannelName] = useState("waigaya")
+  const [appVersion, setAppVersion] = useState("")
 
   useEffect(() => {
     // 初期チャンネル名を取得
     tauriAPI.getCurrentChannelName().then(setChannelName)
+    // ヘッダーに出すアプリのバージョン
+    tauriAPI.getAppVersion().then(setAppVersion).catch(() => {})
 
     const handleMessage = (message: SlackMessage) => {
       const displayMessage: DisplayMessage = {
@@ -129,9 +132,10 @@ export const DisplayWindow: React.FC = () => {
     <div className="m-0 p-0 bg-transparent h-screen border rounded-2xl border-gray-500 text-black overflow-hidden">
       <div
         data-tauri-drag-region
-        className="w-full bg-black text-white px-2 py-1 text-xs cursor-move"
+        className="w-full bg-black text-white px-2 py-1 text-xs cursor-move flex items-center justify-between gap-2"
       >
-        #{channelName}
+        <span className="truncate">#{channelName}</span>
+        {appVersion && <span className="shrink-0 text-gray-400">v{appVersion}</span>}
       </div>
       <div className="flex flex-col overflow-hidden">
         <AnimatePresence>
