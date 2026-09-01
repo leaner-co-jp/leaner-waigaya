@@ -1349,7 +1349,9 @@ impl SlackClientState {
                             }
                             Err(msg) => {
                                 log::warn!("ヘルスチェック失敗: {}", msg);
-                                let _ = app_handle.emit("socket-mode-error", format!("⚠️ ヘルスチェック失敗: {}", msg));
+                                // auth.test が落ちても WebSocket は生きている。socket-mode-error だと
+                                // 一時的なネットワークエラーで繋がったままUIが切断表示になる。
+                                let _ = app_handle.emit("socket-mode-warning", format!("⚠️ ヘルスチェック失敗: {}", msg));
                             }
                         }
                     });
@@ -1586,7 +1588,7 @@ impl SlackClientState {
             String::new()
         };
         let text = format!(
-            ":satellite_antenna: {} が Waigaya を起動しました（v{}{}）",
+            ":wave: {} が Waigaya を起動しました（v{}{}）",
             startup_identity(),
             env!("CARGO_PKG_VERSION"),
             conn_note
@@ -1752,26 +1754,26 @@ impl SlackClientState {
                 }
             }
         } else if event.event_type.as_deref() == Some("message") {
+            // 自分が投稿した起動通知が戻ってきたら受信経路が生きている証拠になる。
+            // Bot User としての投稿には bot_message subtype が付かない（付くのは
+            // Incoming Webhook 等）ので、投稿時に覚えた (channel, ts) の一致で判定する。
+            // 確認を取るだけで打ち切らず、起動通知も通常のメッセージとして画面に流す。
+            if let (Some(ch), Some(ts)) = (event.channel.as_deref(), event.ts.as_deref()) {
+                let hit = inner
+                    .write()
+                    .await
+                    .startup_probe
+                    .remove(&(ch.to_string(), ts.to_string()));
+                if hit {
+                    log::info!("起動通知の自己受信を確認: ch={}", ch);
+                    let _ = app_handle.emit(
+                        "socket-mode-debug",
+                        format!("✅ 受信経路OK（起動通知が {} から戻ってきました）", ch),
+                    );
+                }
+            }
             // subtypeがある場合はスキップ（bot_message, message_changed等）
             if let Some(ref st) = event.subtype {
-                // 自分が投稿した起動通知が戻ってきたら受信経路が生きている証拠になる。
-                // 画面には流さず（bot_message はこれまでどおりスキップ）、確認だけ取る。
-                if st == "bot_message" {
-                    if let (Some(ch), Some(ts)) = (event.channel.as_deref(), event.ts.as_deref()) {
-                        let hit = inner
-                            .write()
-                            .await
-                            .startup_probe
-                            .remove(&(ch.to_string(), ts.to_string()));
-                        if hit {
-                            log::info!("起動通知の自己受信を確認: ch={}", ch);
-                            let _ = app_handle.emit(
-                                "socket-mode-debug",
-                                format!("✅ 受信経路OK（起動通知が {} から戻ってきました）", ch),
-                            );
-                        }
-                    }
-                }
                 let _ = app_handle.emit("socket-mode-debug", format!(
                     "message スキップ: subtype={} ch={}", st, channel_str
                 ));
