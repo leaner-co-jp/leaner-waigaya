@@ -329,6 +329,12 @@ const EVENT_QUEUE_SIZE: usize = 512;
 const STARTUP_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 /// 終了通知の投稿を待つ上限。アプリ終了を長く待たせないよう短く打ち切る。
 const SHUTDOWN_NOTICE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+/// こちらから Ping を打つ間隔。送信が失敗すれば経路が死んでいることが分かる。
+const PING_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+/// 何も受信しない状態がこれを超えたら、RST が届かないハーフオープンとみなす。
+const RECV_SILENCE_LIMIT: std::time::Duration = std::time::Duration::from_secs(90);
+/// Ping タイマーの発火間隔が壁時計でこれを超えていたら、OSがスリープしていたとみなす。
+const SLEEP_DETECT_THRESHOLD: std::time::Duration = std::time::Duration::from_secs(90);
 
 enum SocketRetryOutcome {
     ContinueReconnect,
@@ -1340,12 +1346,55 @@ impl SlackClientState {
 
             let (mut write, mut read) = ws_stream.split();
             let mut health_interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
+            // スリープで溜まった分を復帰時にまとめて発火させない（auth.test の連打になる）
+            health_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             health_interval.tick().await;
+            // Ping 側は既定の Burst のまま。溜まった tick が復帰直後にすぐ来ることが
+            // スリープ検出に都合がいい。
+            let mut ping_interval = tokio::time::interval(PING_INTERVAL);
+            ping_interval.tick().await;
+            // 経路の生死を測るための基準。Instant は単調時計なのでスリープ中は進まず、
+            // SystemTime は壁時計なので進む。この差でスリープ復帰を見分ける。
+            let mut last_recv = std::time::Instant::now();
+            let mut last_ping_wall = std::time::SystemTime::now();
 
             let mut exit_reason = SocketInnerExit::Disconnected;
 
             'inner: loop {
             tokio::select! {
+                _ = ping_interval.tick() => {
+                    // スリープ復帰の検出。単調時計は止まっていても壁時計は進むので、
+                    // 発火間隔が想定より大きく空いていればその間 OS が止まっていた。
+                    // ネットワークも落ちているため接続は死んでいるとみなして張り直す。
+                    let now_wall = std::time::SystemTime::now();
+                    let wall_gap = now_wall.duration_since(last_ping_wall).unwrap_or_default();
+                    last_ping_wall = now_wall;
+                    if wall_gap > SLEEP_DETECT_THRESHOLD {
+                        log::info!("壁時計が {}秒 進んでいる。スリープ復帰とみなして接続を張り直す", wall_gap.as_secs());
+                        let _ = app_handle.emit(
+                            "socket-mode-debug",
+                            format!("🔄 スリープ復帰を検出（{}秒）。接続を張り直します", wall_gap.as_secs()),
+                        );
+                        break 'inner;
+                    }
+
+                    // 経路が死んでも RST が届かないことがある。その場合 read は
+                    // 永久に待つだけなので、受信が途絶えたことで見切りをつける。
+                    let silence = last_recv.elapsed();
+                    if silence > RECV_SILENCE_LIMIT {
+                        log::warn!("{}秒 なにも受信していない。接続を張り直す", silence.as_secs());
+                        let _ = app_handle.emit(
+                            "socket-mode-debug",
+                            format!("🔄 {}秒 受信がないため接続を張り直します", silence.as_secs()),
+                        );
+                        break 'inner;
+                    }
+
+                    if let Err(e) = write.send(Message::Ping(Vec::new().into())).await {
+                        log::warn!("Ping送信エラー: {}", e);
+                        break 'inner;
+                    }
+                }
                 _ = health_interval.tick() => {
                     // auth.test の応答待ちで受信ループを止めない
                     let bot_token = bot_token.clone();
@@ -1374,6 +1423,10 @@ impl SlackClientState {
                     }
                 }
                 msg = read.next() => {
+                    // 中身が何であれ受信できている間は経路が生きている
+                    if msg.is_some() {
+                        last_recv = std::time::Instant::now();
+                    }
                     match msg {
                         Some(Ok(Message::Text(text))) => {
                             if let Ok(socket_msg) = serde_json::from_str::<SocketModeMessage>(&text) {
