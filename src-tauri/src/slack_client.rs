@@ -139,6 +139,15 @@ struct AuthTestResponse {
 }
 
 #[derive(Debug, Deserialize)]
+struct ChatPostMessageResponse {
+    ok: bool,
+    #[serde(default)]
+    ts: Option<String>,
+    #[serde(default)]
+    error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct ConversationsListResponse {
     ok: bool,
     #[serde(default)]
@@ -316,6 +325,8 @@ const IMAGE_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(
 const MAX_BACKOFF_SECS: u64 = 60;
 /// イベント処理ワーカーのキュー長。ここまで滞留するのは Slack API 側が詰まっている状態。
 const EVENT_QUEUE_SIZE: usize = 512;
+/// 起動通知が Events API 経由で戻ってくるのを待つ時間。これを過ぎたら受信経路を疑う。
+const STARTUP_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 
 enum SocketRetryOutcome {
     ContinueReconnect,
@@ -342,6 +353,22 @@ fn image_http_client() -> &'static reqwest::Client {
             .build()
             .unwrap_or_default()
     })
+}
+
+/// 起動通知に載せる「誰が起動したか」。OSのユーザー名とホスト名で、マシン単位に区別できる。
+fn startup_identity() -> String {
+    let user = std::env::var("USER")
+        .or_else(|_| std::env::var("LOGNAME"))
+        .unwrap_or_else(|_| "unknown".to_string());
+    let host = std::process::Command::new("hostname")
+        .arg("-s")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unknown".to_string());
+    format!("{}@{}", user, host)
 }
 
 async fn check_token_valid(bot_token: &str) -> Result<(), String> {
@@ -380,6 +407,9 @@ struct SlackClientInner {
     socket_task: Option<tokio::task::JoinHandle<()>>,
     socket_generation: u64,
     last_event_at: Option<std::time::SystemTime>,
+    /// 起動通知として投稿した (channel, ts)。Events API 経由で戻ってきたら取り除く。
+    /// 残ったままなら投稿は届いたのに受信経路が死んでいる。
+    startup_probe: std::collections::HashSet<(String, String)>,
 }
 
 impl SlackClientState {
@@ -396,6 +426,7 @@ impl SlackClientState {
                 socket_task: None,
                 socket_generation: 0,
                 last_event_at: None,
+                startup_probe: std::collections::HashSet::new(),
             })),
         }
     }
@@ -1138,6 +1169,8 @@ impl SlackClientState {
 
         let mut backoff_secs: u64 = 1;
         let mut reconnect_attempt: u32 = 0;
+        // 起動通知を投稿したか。再接続をまたいで持ち回る。
+        let mut startup_notified = false;
 
         'reconnect: loop {
             if *cancel_rx.borrow() {
@@ -1353,6 +1386,18 @@ impl SlackClientState {
                                         log::warn!("同一アプリで Socket Mode 接続が {} 本張られています", conns);
                                     }
                                     let _ = app_handle.emit("socket-mode-connections", conns);
+
+                                    // 起動通知はプロセスにつき 1 回だけ。Slack は数時間ごとに
+                                    // refresh を要求してくるので、再接続のたびに投稿すると連投になる。
+                                    if !startup_notified {
+                                        startup_notified = true;
+                                        let bot_token = bot_token.clone();
+                                        let inner = inner.clone();
+                                        let app_handle = app_handle.clone();
+                                        tokio::spawn(async move {
+                                            Self::announce_startup(&bot_token, &inner, &app_handle, conns).await;
+                                        });
+                                    }
                                 } else {
                                     let _ = app_handle.emit("socket-mode-debug", format!("受信: type={}", msg_type_str));
                                 }
@@ -1518,6 +1563,118 @@ impl SlackClientState {
         }
     }
 
+    /// 起動通知を監視チャンネル全部に投稿し、それが Events API 経由で戻ってくるか確かめる。
+    /// chat.postMessage が通っても Event Subscriptions が切られていればイベントは戻ってこない。
+    /// 投稿（Web API）と受信（Events API）は別経路なので、両方を通して初めて疎通と言える。
+    async fn announce_startup(
+        bot_token: &str,
+        inner: &Arc<RwLock<SlackClientInner>>,
+        app_handle: &tauri::AppHandle,
+        connections: u32,
+    ) {
+        let channels: Vec<String> = {
+            let r = inner.read().await;
+            r.watched_channels.iter().cloned().collect()
+        };
+        if channels.is_empty() {
+            return;
+        }
+
+        let conn_note = if connections > 1 {
+            format!(" / 接続 {}本目", connections)
+        } else {
+            String::new()
+        };
+        let text = format!(
+            ":satellite_antenna: {} が Waigaya を起動しました（v{}{}）",
+            startup_identity(),
+            env!("CARGO_PKG_VERSION"),
+            conn_note
+        );
+
+        let mut posted = 0usize;
+        for channel in &channels {
+            match Self::post_message(bot_token, channel, &text).await {
+                Ok(ts) => {
+                    inner
+                        .write()
+                        .await
+                        .startup_probe
+                        .insert((channel.clone(), ts));
+                    posted += 1;
+                }
+                Err(msg) => {
+                    log::warn!("起動通知の投稿に失敗: ch={} {}", channel, msg);
+                    // 接続は生きているので socket-mode-error は使わない（UIが切断表示になる）
+                    let _ = app_handle.emit(
+                        "socket-mode-warning",
+                        format!("⚠️ 起動通知を投稿できませんでした（{}）: {}", channel, msg),
+                    );
+                }
+            }
+        }
+
+        if posted == 0 {
+            return;
+        }
+
+        tokio::time::sleep(STARTUP_PROBE_TIMEOUT).await;
+
+        let unanswered: Vec<String> = {
+            let mut w = inner.write().await;
+            let left: Vec<String> = w.startup_probe.iter().map(|(c, _)| c.clone()).collect();
+            w.startup_probe.clear();
+            left
+        };
+
+        if unanswered.is_empty() {
+            let _ = app_handle.emit(
+                "socket-mode-debug",
+                "✅ 受信経路の確認OK（起動通知が Events API 経由で戻ってきました）",
+            );
+        } else {
+            let msg = format!(
+                "⚠️ 起動通知は投稿できましたが Events API 経由で戻ってきません（{}）。Slack App の Event Subscriptions が無効になっている可能性があります。",
+                unanswered.join(", ")
+            );
+            log::warn!("{}", msg);
+            let _ = app_handle.emit("socket-mode-warning", msg);
+        }
+    }
+
+    /// チャンネルにメッセージを投稿し、投稿された ts を返す
+    async fn post_message(bot_token: &str, channel: &str, text: &str) -> Result<String, String> {
+        if bot_token.is_empty() {
+            return Err("Bot Tokenが未設定です".to_string());
+        }
+        let resp = http_client()
+            .post("https://slack.com/api/chat.postMessage")
+            .bearer_auth(bot_token)
+            .json(&serde_json::json!({ "channel": channel, "text": text }))
+            .send()
+            .await
+            .map_err(|e| format!("ネットワークエラー: {}", e))?;
+        let r: ChatPostMessageResponse = resp
+            .json()
+            .await
+            .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
+        if r.ok {
+            return r.ts.ok_or_else(|| "tsが返りませんでした".to_string());
+        }
+        // translate_slack_error の missing_scope は Socket Mode 接続用の文言なので、
+        // 投稿の失敗にはそのまま使えない。投稿で実際に出るコードだけ個別に訳す。
+        let code = r.error.as_deref().unwrap_or("unknown");
+        Err(match code {
+            "missing_scope" | "not_allowed_token_type" =>
+                "chat:write スコープが不足しています。Slack App に追加して再インストールしてください。".to_string(),
+            "not_in_channel" =>
+                "Botがチャンネルに参加していません。チャンネルに招待してください。".to_string(),
+            "channel_not_found" => "チャンネルが見つかりません。".to_string(),
+            "is_archived" => "アーカイブ済みのチャンネルには投稿できません。".to_string(),
+            _ => translate_slack_error(code),
+        })
+    }
+
     /// events_api のイベント 1 件を処理する。
     /// Slack Web API 待ちを含むため受信ループから切り離し、専用ワーカーで直列に実行する。
     async fn process_event(
@@ -1597,6 +1754,24 @@ impl SlackClientState {
         } else if event.event_type.as_deref() == Some("message") {
             // subtypeがある場合はスキップ（bot_message, message_changed等）
             if let Some(ref st) = event.subtype {
+                // 自分が投稿した起動通知が戻ってきたら受信経路が生きている証拠になる。
+                // 画面には流さず（bot_message はこれまでどおりスキップ）、確認だけ取る。
+                if st == "bot_message" {
+                    if let (Some(ch), Some(ts)) = (event.channel.as_deref(), event.ts.as_deref()) {
+                        let hit = inner
+                            .write()
+                            .await
+                            .startup_probe
+                            .remove(&(ch.to_string(), ts.to_string()));
+                        if hit {
+                            log::info!("起動通知の自己受信を確認: ch={}", ch);
+                            let _ = app_handle.emit(
+                                "socket-mode-debug",
+                                format!("✅ 受信経路OK（起動通知が {} から戻ってきました）", ch),
+                            );
+                        }
+                    }
+                }
                 let _ = app_handle.emit("socket-mode-debug", format!(
                     "message スキップ: subtype={} ch={}", st, channel_str
                 ));

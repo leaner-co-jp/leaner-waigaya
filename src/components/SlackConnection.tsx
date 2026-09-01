@@ -160,6 +160,10 @@ export const SlackConnection: React.FC = () => {
         setConnectionCount(null)
         addLog("error", "接続", `❌ Socket Mode失敗: ${e.payload}`)
       }),
+      // 接続そのものは生きているが伝えたいこと（起動通知の投稿失敗、受信経路の異常）。
+      // socket-mode-error と違って接続状態は落とさない。
+      listen<string>('socket-mode-warning', (e) =>
+        addLog("warn", "接続", e.payload)),
       listen<string>('socket-mode-debug', (e) =>
         addLog("info", "接続", `[WS] ${e.payload}`)),
       listen<number>('slack-last-event', (e) =>
