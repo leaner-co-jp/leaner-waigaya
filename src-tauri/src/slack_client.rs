@@ -314,6 +314,8 @@ fn translate_slack_error(code: &str) -> String {
 const HTTP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 const IMAGE_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 const MAX_BACKOFF_SECS: u64 = 60;
+/// イベント処理ワーカーのキュー長。ここまで滞留するのは Slack API 側が詰まっている状態。
+const EVENT_QUEUE_SIZE: usize = 512;
 
 enum SocketRetryOutcome {
     ContinueReconnect,
@@ -1117,6 +1119,23 @@ impl SlackClientState {
 
         log::info!("Socket Mode接続開始...");
 
+        // イベント処理はワーカーに分離し、受信ループは ACK と Pong に専念させる。
+        // Slack Web API の応答待ちで受信が止まると、後続イベントの ACK と Ping への
+        // Pong が遅れ、Slack 側で配信失敗と数えられて Event Subscriptions を切られる。
+        // ワーカーは再接続をまたいで 1 本だけなので、メッセージの到着順は保たれる。
+        // run_socket_mode を抜けると event_tx が drop され、ワーカーは残りを処理して終わる。
+        let (event_tx, mut event_rx) = tokio::sync::mpsc::channel::<SlackEvent>(EVENT_QUEUE_SIZE);
+        {
+            let bot_token = bot_token.clone();
+            let inner = inner.clone();
+            let app_handle = app_handle.clone();
+            tokio::spawn(async move {
+                while let Some(event) = event_rx.recv().await {
+                    Self::process_event(&event, &bot_token, &inner, &app_handle).await;
+                }
+            });
+        }
+
         let mut backoff_secs: u64 = 1;
         let mut reconnect_attempt: u32 = 0;
 
@@ -1287,15 +1306,20 @@ impl SlackClientState {
             'inner: loop {
             tokio::select! {
                 _ = health_interval.tick() => {
-                    match check_token_valid(&bot_token).await {
-                        Ok(()) => {
-                            let _ = app_handle.emit("socket-mode-debug", "ヘルスチェック OK（トークン有効）");
+                    // auth.test の応答待ちで受信ループを止めない
+                    let bot_token = bot_token.clone();
+                    let app_handle = app_handle.clone();
+                    tokio::spawn(async move {
+                        match check_token_valid(&bot_token).await {
+                            Ok(()) => {
+                                let _ = app_handle.emit("socket-mode-debug", "ヘルスチェック OK（トークン有効）");
+                            }
+                            Err(msg) => {
+                                log::warn!("ヘルスチェック失敗: {}", msg);
+                                let _ = app_handle.emit("socket-mode-error", format!("⚠️ ヘルスチェック失敗: {}", msg));
+                            }
                         }
-                        Err(msg) => {
-                            log::warn!("ヘルスチェック失敗: {}", msg);
-                            let _ = app_handle.emit("socket-mode-error", format!("⚠️ ヘルスチェック失敗: {}", msg));
-                        }
-                    }
+                    });
                 }
                 _ = cancel_rx.changed() => {
                     if *cancel_rx.borrow() {
@@ -1352,238 +1376,18 @@ impl SlackClientState {
                                     }
                                 }
 
-                                // events_api のメッセージイベントのみ処理
+                                // events_api はワーカーに渡して即座に受信へ戻る。
+                                // ここで Slack Web API を待つと後続イベントの ACK と
+                                // Ping への Pong が遅れ、Slack 側で配信失敗と数えられる。
                                 if socket_msg.msg_type.as_deref() == Some("events_api") {
-                                    if let Some(payload) = &socket_msg.payload {
-                                        if let Some(event) = &payload.event {
-                                            let event_type_str = event.event_type.as_deref().unwrap_or("unknown");
-                                            let subtype_str = event.subtype.as_deref().unwrap_or("");
-                                            let channel_str = event.channel.as_deref().unwrap_or("(none)");
-                                            let (watched, watched_ids_str) = if let Some(ch) = &event.channel {
-                                                let r = inner.read().await;
-                                                let is_w = r.watched_channels.contains(ch);
-                                                let ids: Vec<String> = r.watched_channels.iter().cloned().collect();
-                                                (is_w, ids.join(", "))
-                                            } else { (false, String::new()) };
-                                            let subtype_label = if subtype_str.is_empty() {
-                                                String::new()
-                                            } else {
-                                                format!(" subtype={}", subtype_str)
-                                            };
-                                            log::info!("events_api: type={}{} ch={} watched={}", event_type_str, subtype_label, channel_str, watched);
-                                            if !watched && !watched_ids_str.is_empty() {
-                                                let _ = app_handle.emit("socket-mode-debug", format!(
-                                                    "events_api: type={}{} ch={} watched=false (監視中: [{}])",
-                                                    event_type_str, subtype_label, channel_str, watched_ids_str
-                                                ));
-                                            } else {
-                                                let _ = app_handle.emit("socket-mode-debug", format!(
-                                                    "events_api: type={}{} ch={} watched={}",
-                                                    event_type_str, subtype_label, channel_str, watched
-                                                ));
-                                            }
-                                            if event.event_type.as_deref() == Some("reaction_added") || event.event_type.as_deref() == Some("reaction_removed") {
-                                                if let Some(item) = &event.item {
-                                                    if let Some(item_channel) = &item.channel {
-                                                        let is_watched = {
-                                                            inner.read().await.watched_channels.contains(item_channel)
-                                                        };
-
-                                                        if is_watched {
-                                                            let action = if event.event_type.as_deref() == Some("reaction_added") {
-                                                                "added"
-                                                            } else {
-                                                                "removed"
-                                                            };
-                                                            let reaction_name = event.reaction.clone().unwrap_or_default();
-                                                            let user_id = event.user.clone().unwrap_or_default();
-                                                            let user_info = Self::fetch_user_info_static(&bot_token, &user_id, &inner).await;
-                                                            let user_name = user_info.get("real_name")
-                                                                .or_else(|| user_info.get("name"))
-                                                                .and_then(|v| v.as_str())
-                                                                .unwrap_or("unknown")
-                                                                .to_string();
-                                                            let message_ts = item.ts.clone().unwrap_or_default();
-
-                                                            let reaction_event = SlackReactionEvent {
-                                                                action: action.to_string(),
-                                                                reaction: reaction_name.clone(),
-                                                                user: user_name,
-                                                                channel: item_channel.clone(),
-                                                                message_ts,
-                                                            };
-
-                                                            if let Err(e) = app_handle.emit("slack-reaction", &reaction_event) {
-                                                                log::error!("リアクションイベント送信エラー: {}", e);
-                                                            } else {
-                                                                let now = std::time::SystemTime::now();
-                                                                inner.write().await.last_event_at = Some(now);
-                                                                let secs = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-                                                                let _ = app_handle.emit("slack-last-event", secs);
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            } else if event.event_type.as_deref() == Some("message") {
-                                                // subtypeがある場合はスキップ（bot_message, message_changed等）
-                                                if let Some(ref st) = event.subtype {
-                                                    let _ = app_handle.emit("socket-mode-debug", format!(
-                                                        "message スキップ: subtype={} ch={}", st, channel_str
-                                                    ));
-                                                } else if let Some(channel) = &event.channel {
-                                                    let is_watched = {
-                                                        inner.read().await.watched_channels.contains(channel)
-                                                    };
-
-                                                    if is_watched {
-                                                        let user_id = event.user.clone().unwrap_or_default();
-                                                        let text = event.text.clone().unwrap_or_default();
-                                                        let text = Self::resolve_mentions(&text, &bot_token, &inner).await;
-                                                        let ts = event.ts.clone();
-
-                                                        // ユーザー情報を取得
-                                                        let user_info = Self::fetch_user_info_static(&bot_token, &user_id, &inner).await;
-                                                        let user_name = user_info.get("real_name")
-                                                            .or_else(|| user_info.get("name"))
-                                                            .and_then(|v| v.as_str())
-                                                            .unwrap_or("unknown")
-                                                            .to_string();
-                                                        let user_icon = user_info.get("profile")
-                                                            .and_then(|p| p.get("image_72").or_else(|| p.get("image_48")))
-                                                            .and_then(|v| v.as_str())
-                                                            .unwrap_or("")
-                                                            .to_string();
-
-                                                        // スレッド返信の親メッセージ情報を取得
-                                                        let thread_ts = event.thread_ts.clone();
-                                                        let (reply_to_user, reply_to_text) = if let Some(ref tts) = thread_ts {
-                                                            // thread_ts と ts が同じ場合はスレッドの親メッセージ自体なのでスキップ
-                                                            if Some(tts.as_str()) != event.ts.as_deref() {
-                                                                if let Some((parent_user_id, parent_text)) = Self::fetch_parent_message_static(&bot_token, channel, tts).await {
-                                                                    // 親メッセージのユーザー名を解決
-                                                                    let parent_user_info = Self::fetch_user_info_static(&bot_token, &parent_user_id, &inner).await;
-                                                                    let parent_user_name = parent_user_info.get("real_name")
-                                                                        .or_else(|| parent_user_info.get("name"))
-                                                                        .and_then(|v| v.as_str())
-                                                                        .unwrap_or("unknown")
-                                                                        .to_string();
-                                                                    let parent_text = Self::resolve_mentions(&parent_text, &bot_token, &inner).await;
-                                                                    (Some(parent_user_name), Some(parent_text))
-                                                                } else {
-                                                                    (None, None)
-                                                                }
-                                                            } else {
-                                                                (None, None)
-                                                            }
-                                                        } else {
-                                                            (None, None)
-                                                        };
-
-                                                        // 画像URLを収集（取得はバックグラウンドで非同期）
-                                                        let mut image_jobs: Vec<(String, String, Option<String>)> = Vec::new();
-                                                        if let Some(files) = &event.files {
-                                                            for file in files {
-                                                                let mime = file.mimetype.as_deref().unwrap_or("");
-                                                                if !mime.starts_with("image/") {
-                                                                    continue;
-                                                                }
-                                                                let url = [
-                                                                    file.url_private_download.as_deref(),
-                                                                    file.thumb_480.as_deref(),
-                                                                    file.thumb_360.as_deref(),
-                                                                    file.url_private.as_deref(),
-                                                                ]
-                                                                .into_iter()
-                                                                .flatten()
-                                                                .next();
-                                                                if let Some(url) = url {
-                                                                    image_jobs.push((
-                                                                        url.to_string(),
-                                                                        mime.to_string(),
-                                                                        file.name.clone(),
-                                                                    ));
-                                                                }
-                                                            }
-                                                        }
-
-                                                        let has_text = !text.is_empty();
-                                                        let has_pending_images = !image_jobs.is_empty();
-
-                                                        if has_text || has_pending_images {
-                                                            let message = SlackMessage {
-                                                                text,
-                                                                user: user_name,
-                                                                user_icon,
-                                                                channel: Some(channel.clone()),
-                                                                timestamp: ts.clone(),
-                                                                queue_action: Some("addToQueue".to_string()),
-                                                                thread_ts,
-                                                                reply_to_user,
-                                                                reply_to_text,
-                                                                images: None,
-                                                            };
-
-                                                            if let Err(e) = app_handle.emit("add-to-text-queue", &message) {
-                                                                log::error!("メッセージ送信エラー: {}", e);
-                                                            } else {
-                                                                log::info!("メッセージをフロントエンドに送信: {}", message.text.chars().take(50).collect::<String>());
-                                                                let now = std::time::SystemTime::now();
-                                                                inner.write().await.last_event_at = Some(now);
-                                                                let secs = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-                                                                let _ = app_handle.emit("slack-last-event", secs);
-                                                            }
-
-                                                            if has_pending_images {
-                                                                let channel_id = channel.clone();
-                                                                let message_ts = ts.clone().unwrap_or_default();
-                                                                let bot_token_spawn = bot_token.clone();
-                                                                let app_handle_spawn = app_handle.clone();
-                                                                tokio::spawn(async move {
-                                                                    let fetch_result = tokio::time::timeout(
-                                                                        IMAGE_FETCH_TIMEOUT,
-                                                                        async {
-                                                                            let mut image_list = Vec::new();
-                                                                            for (url, mime, name) in image_jobs {
-                                                                                if let Some(data_url) =
-                                                                                    SlackClientState::fetch_image_as_data_url(
-                                                                                        &bot_token_spawn,
-                                                                                        &url,
-                                                                                        &mime,
-                                                                                    )
-                                                                                    .await
-                                                                                {
-                                                                                    image_list.push(ImageData {
-                                                                                        data_url,
-                                                                                        name,
-                                                                                    });
-                                                                                }
-                                                                            }
-                                                                            image_list
-                                                                        },
-                                                                    )
-                                                                    .await;
-
-                                                                    if let Ok(images) = fetch_result {
-                                                                        if !images.is_empty() {
-                                                                            let payload = MessageImagesReady {
-                                                                                channel: channel_id,
-                                                                                timestamp: message_ts,
-                                                                                images,
-                                                                            };
-                                                                            let _ = app_handle_spawn
-                                                                                .emit("message-images-ready", &payload);
-                                                                        }
-                                                                    }
-                                                                });
-                                                            }
-                                                        } else {
-                                                            let _ = app_handle.emit("socket-mode-debug", format!(
-                                                                "message スキップ: テキスト・画像なし ch={} user={}",
-                                                                channel, user_id
-                                                            ));
-                                                        }
-                                                    }
-                                                }
+                                    if let Some(payload) = socket_msg.payload {
+                                        if let Some(event) = payload.event {
+                                            if let Err(e) = event_tx.try_send(event) {
+                                                log::warn!("イベントキューが詰まったため破棄: {}", e);
+                                                let _ = app_handle.emit(
+                                                    "socket-mode-debug",
+                                                    "⚠️ イベント処理が追いつかずメッセージを破棄しました",
+                                                );
                                             }
                                         }
                                     }
@@ -1714,6 +1518,245 @@ impl SlackClientState {
         }
     }
 
+    /// events_api のイベント 1 件を処理する。
+    /// Slack Web API 待ちを含むため受信ループから切り離し、専用ワーカーで直列に実行する。
+    async fn process_event(
+        event: &SlackEvent,
+        bot_token: &str,
+        inner: &Arc<RwLock<SlackClientInner>>,
+        app_handle: &tauri::AppHandle,
+    ) {
+        let event_type_str = event.event_type.as_deref().unwrap_or("unknown");
+        let subtype_str = event.subtype.as_deref().unwrap_or("");
+        let channel_str = event.channel.as_deref().unwrap_or("(none)");
+        let (watched, watched_ids_str) = if let Some(ch) = &event.channel {
+            let r = inner.read().await;
+            let is_w = r.watched_channels.contains(ch);
+            let ids: Vec<String> = r.watched_channels.iter().cloned().collect();
+            (is_w, ids.join(", "))
+        } else { (false, String::new()) };
+        let subtype_label = if subtype_str.is_empty() {
+            String::new()
+        } else {
+            format!(" subtype={}", subtype_str)
+        };
+        log::info!("events_api: type={}{} ch={} watched={}", event_type_str, subtype_label, channel_str, watched);
+        if !watched && !watched_ids_str.is_empty() {
+            let _ = app_handle.emit("socket-mode-debug", format!(
+                "events_api: type={}{} ch={} watched=false (監視中: [{}])",
+                event_type_str, subtype_label, channel_str, watched_ids_str
+            ));
+        } else {
+            let _ = app_handle.emit("socket-mode-debug", format!(
+                "events_api: type={}{} ch={} watched={}",
+                event_type_str, subtype_label, channel_str, watched
+            ));
+        }
+        if event.event_type.as_deref() == Some("reaction_added") || event.event_type.as_deref() == Some("reaction_removed") {
+            if let Some(item) = &event.item {
+                if let Some(item_channel) = &item.channel {
+                    let is_watched = {
+                        inner.read().await.watched_channels.contains(item_channel)
+                    };
+
+                    if is_watched {
+                        let action = if event.event_type.as_deref() == Some("reaction_added") {
+                            "added"
+                        } else {
+                            "removed"
+                        };
+                        let reaction_name = event.reaction.clone().unwrap_or_default();
+                        let user_id = event.user.clone().unwrap_or_default();
+                        let user_info = Self::fetch_user_info_static(bot_token, &user_id, inner).await;
+                        let user_name = user_info.get("real_name")
+                            .or_else(|| user_info.get("name"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown")
+                            .to_string();
+                        let message_ts = item.ts.clone().unwrap_or_default();
+
+                        let reaction_event = SlackReactionEvent {
+                            action: action.to_string(),
+                            reaction: reaction_name.clone(),
+                            user: user_name,
+                            channel: item_channel.clone(),
+                            message_ts,
+                        };
+
+                        if let Err(e) = app_handle.emit("slack-reaction", &reaction_event) {
+                            log::error!("リアクションイベント送信エラー: {}", e);
+                        } else {
+                            let now = std::time::SystemTime::now();
+                            inner.write().await.last_event_at = Some(now);
+                            let secs = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+                            let _ = app_handle.emit("slack-last-event", secs);
+                        }
+                    }
+                }
+            }
+        } else if event.event_type.as_deref() == Some("message") {
+            // subtypeがある場合はスキップ（bot_message, message_changed等）
+            if let Some(ref st) = event.subtype {
+                let _ = app_handle.emit("socket-mode-debug", format!(
+                    "message スキップ: subtype={} ch={}", st, channel_str
+                ));
+            } else if let Some(channel) = &event.channel {
+                let is_watched = {
+                    inner.read().await.watched_channels.contains(channel)
+                };
+
+                if is_watched {
+                    let user_id = event.user.clone().unwrap_or_default();
+                    let text = event.text.clone().unwrap_or_default();
+                    let text = Self::resolve_mentions(&text, bot_token, inner).await;
+                    let ts = event.ts.clone();
+
+                    // ユーザー情報を取得
+                    let user_info = Self::fetch_user_info_static(bot_token, &user_id, inner).await;
+                    let user_name = user_info.get("real_name")
+                        .or_else(|| user_info.get("name"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let user_icon = user_info.get("profile")
+                        .and_then(|p| p.get("image_72").or_else(|| p.get("image_48")))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+
+                    // スレッド返信の親メッセージ情報を取得
+                    let thread_ts = event.thread_ts.clone();
+                    let (reply_to_user, reply_to_text) = if let Some(ref tts) = thread_ts {
+                        // thread_ts と ts が同じ場合はスレッドの親メッセージ自体なのでスキップ
+                        if Some(tts.as_str()) != event.ts.as_deref() {
+                            if let Some((parent_user_id, parent_text)) = Self::fetch_parent_message_static(bot_token, channel, tts).await {
+                                // 親メッセージのユーザー名を解決
+                                let parent_user_info = Self::fetch_user_info_static(bot_token, &parent_user_id, inner).await;
+                                let parent_user_name = parent_user_info.get("real_name")
+                                    .or_else(|| parent_user_info.get("name"))
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown")
+                                    .to_string();
+                                let parent_text = Self::resolve_mentions(&parent_text, bot_token, inner).await;
+                                (Some(parent_user_name), Some(parent_text))
+                            } else {
+                                (None, None)
+                            }
+                        } else {
+                            (None, None)
+                        }
+                    } else {
+                        (None, None)
+                    };
+
+                    // 画像URLを収集（取得はバックグラウンドで非同期）
+                    let mut image_jobs: Vec<(String, String, Option<String>)> = Vec::new();
+                    if let Some(files) = &event.files {
+                        for file in files {
+                            let mime = file.mimetype.as_deref().unwrap_or("");
+                            if !mime.starts_with("image/") {
+                                continue;
+                            }
+                            let url = [
+                                file.url_private_download.as_deref(),
+                                file.thumb_480.as_deref(),
+                                file.thumb_360.as_deref(),
+                                file.url_private.as_deref(),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .next();
+                            if let Some(url) = url {
+                                image_jobs.push((
+                                    url.to_string(),
+                                    mime.to_string(),
+                                    file.name.clone(),
+                                ));
+                            }
+                        }
+                    }
+
+                    let has_text = !text.is_empty();
+                    let has_pending_images = !image_jobs.is_empty();
+
+                    if has_text || has_pending_images {
+                        let message = SlackMessage {
+                            text,
+                            user: user_name,
+                            user_icon,
+                            channel: Some(channel.clone()),
+                            timestamp: ts.clone(),
+                            queue_action: Some("addToQueue".to_string()),
+                            thread_ts,
+                            reply_to_user,
+                            reply_to_text,
+                            images: None,
+                        };
+
+                        if let Err(e) = app_handle.emit("add-to-text-queue", &message) {
+                            log::error!("メッセージ送信エラー: {}", e);
+                        } else {
+                            log::info!("メッセージをフロントエンドに送信: {}", message.text.chars().take(50).collect::<String>());
+                            let now = std::time::SystemTime::now();
+                            inner.write().await.last_event_at = Some(now);
+                            let secs = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+                            let _ = app_handle.emit("slack-last-event", secs);
+                        }
+
+                        if has_pending_images {
+                            let channel_id = channel.clone();
+                            let message_ts = ts.clone().unwrap_or_default();
+                            let bot_token_spawn = bot_token.to_string();
+                            let app_handle_spawn = app_handle.clone();
+                            tokio::spawn(async move {
+                                let fetch_result = tokio::time::timeout(
+                                    IMAGE_FETCH_TIMEOUT,
+                                    async {
+                                        let mut image_list = Vec::new();
+                                        for (url, mime, name) in image_jobs {
+                                            if let Some(data_url) =
+                                                SlackClientState::fetch_image_as_data_url(
+                                                    &bot_token_spawn,
+                                                    &url,
+                                                    &mime,
+                                                )
+                                                .await
+                                            {
+                                                image_list.push(ImageData {
+                                                    data_url,
+                                                    name,
+                                                });
+                                            }
+                                        }
+                                        image_list
+                                    },
+                                )
+                                .await;
+
+                                if let Ok(images) = fetch_result {
+                                    if !images.is_empty() {
+                                        let payload = MessageImagesReady {
+                                            channel: channel_id,
+                                            timestamp: message_ts,
+                                            images,
+                                        };
+                                        let _ = app_handle_spawn
+                                            .emit("message-images-ready", &payload);
+                                    }
+                                }
+                            });
+                        }
+                    } else {
+                        let _ = app_handle.emit("socket-mode-debug", format!(
+                            "message スキップ: テキスト・画像なし ch={} user={}",
+                            channel, user_id
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
     /// ユーザー情報を取得（static版、Socket Modeタスク内で使用）
     async fn fetch_user_info_static(
         bot_token: &str,
@@ -1732,11 +1775,7 @@ impl SlackClientState {
             return serde_json::json!({"name": "unknown", "profile": {}});
         }
 
-        let client = reqwest::Client::builder()
-            .timeout(HTTP_TIMEOUT)
-            .build()
-            .unwrap_or_default();
-        let resp = client
+        let resp = http_client()
             .get("https://slack.com/api/users.info")
             .bearer_auth(bot_token)
             .query(&[("user", user_id)])
@@ -1770,11 +1809,7 @@ impl SlackClientState {
             return None;
         }
 
-        let client = reqwest::Client::builder()
-            .timeout(HTTP_TIMEOUT)
-            .build()
-            .unwrap_or_default();
-        let resp = client
+        let resp = http_client()
             .get("https://slack.com/api/conversations.replies")
             .bearer_auth(bot_token)
             .query(&[
@@ -1875,6 +1910,19 @@ mod tests {
         let result = handle.await;
         assert!(result.is_err());
         assert!(result.unwrap_err().is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn full_queue_drops_instead_of_blocking() {
+        // 受信ループはイベントを try_send でワーカーに渡す。キューが満杯でも待たされず、
+        // Full が返るだけで ACK と Pong の処理にすぐ戻れる。
+        let (tx, _rx) = tokio::sync::mpsc::channel::<u32>(2);
+        assert!(tx.try_send(1).is_ok());
+        assert!(tx.try_send(2).is_ok());
+        assert!(matches!(
+            tx.try_send(3),
+            Err(tokio::sync::mpsc::error::TrySendError::Full(3))
+        ));
     }
 
     #[tokio::test]

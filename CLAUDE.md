@@ -74,6 +74,8 @@ Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Contr
 - **外部URLを開く**: `openUrl` from `@tauri-apps/plugin-opener`（Rust側 `tauri-plugin-opener = "2"` と対応）
 - **Slack message subtype**: `message` タイプイベントには `bot_message`/`message_changed`/`message_deleted` 等のsubtypeがある。`SlackEvent` 構造体に `subtype: Option<String>` フィールドが必要
 - **デバッグログ経路**: Rust → フロントエンドのデバッグ情報は `socket-mode-debug`（String payload）イベント経由でLogViewerに届く
+- **受信ループを止めない**: Socket Mode の受信ループは ACK と Pong の送信だけを担当し、イベント本体の処理（`users.info` / `conversations.replies` / 画像取得）は mpsc 経由でワーカータスクに渡す。受信ループで Slack Web API を待つと（`HTTP_TIMEOUT` は30秒）後続イベントの ACK と Ping への Pong が遅れ、Slack 側で配信失敗と数えられる。ワーカーは再接続をまたいで1本だけなのでメッセージの到着順は保たれる。ヘルスチェックの `auth.test` も同じ理由で `tokio::spawn` に逃がしている
+- **Enable Events が勝手にオフになる**: Slack は60分の間にイベント配信の95%以上が失敗すると Event Subscriptions を自動で無効化してメールを送る。Socket Mode は WebSocket 接続が1本もないとイベントを配信できないため、誰もアプリを起動していない時間帯が長いとこれだけでも無効化されうる（アプリの不具合とは限らない）。Event Subscriptions 画面の Delayed Events は、ダウンタイム中に取りこぼしたイベントを24時間かけて再配信する機能。有効にすると起動直後に何時間も前のメッセージが流れ出すため、このアプリではオフのままにする
 - **ヘルスチェック**: Socket Modeループ内で5分ごとに `auth.test` を実行。失敗時はLogViewerに警告を表示
 - **slack-last-event イベント**: メッセージ/リアクション受信時にemitされ、フロントエンドで「最後のイベント受信: X分前」を表示する。30分以上未受信の場合はEvent Subscriptions確認の警告を表示
 - **Slackエラー変換**: `translate_slack_error()` (slack_client.rs) が `socket_mode_not_enabled`/`invalid_auth`/`missing_scope` 等のエラーコードを日本語メッセージに変換
