@@ -327,6 +327,8 @@ const MAX_BACKOFF_SECS: u64 = 60;
 const EVENT_QUEUE_SIZE: usize = 512;
 /// 起動通知が Events API 経由で戻ってくるのを待つ時間。これを過ぎたら受信経路を疑う。
 const STARTUP_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+/// 終了通知の投稿を待つ上限。アプリ終了を長く待たせないよう短く打ち切る。
+const SHUTDOWN_NOTICE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
 
 enum SocketRetryOutcome {
     ContinueReconnect,
@@ -410,6 +412,8 @@ struct SlackClientInner {
     /// 起動通知として投稿した (channel, ts)。Events API 経由で戻ってきたら取り除く。
     /// 残ったままなら投稿は届いたのに受信経路が死んでいる。
     startup_probe: std::collections::HashSet<(String, String)>,
+    /// 起動通知を投稿できたか。終了通知はこれが true のときだけ出す。
+    startup_announced: bool,
 }
 
 impl SlackClientState {
@@ -427,6 +431,7 @@ impl SlackClientState {
                 socket_generation: 0,
                 last_event_at: None,
                 startup_probe: std::collections::HashSet::new(),
+                startup_announced: false,
             })),
         }
     }
@@ -604,6 +609,9 @@ impl SlackClientState {
     }
 
     pub async fn disconnect(&self) {
+        // 接続を切る前に監視終了を知らせる（ロックを取る前に済ませる）
+        self.announce_shutdown().await;
+
         let mut inner = self.inner.write().await;
         if let Some(cancel) = inner.socket_cancel.take() {
             let _ = cancel.send(true);
@@ -1565,6 +1573,53 @@ impl SlackClientState {
         }
     }
 
+    /// 監視終了を監視チャンネルに知らせる。起動通知を出せたときだけ投稿する。
+    /// アプリ終了時にも通るので、投稿できなくても終了を待たせないよう短く打ち切る。
+    async fn announce_shutdown(&self) {
+        let (bot_token, channels) = {
+            let r = self.inner.read().await;
+            if !r.startup_announced {
+                return;
+            }
+            let channels: Vec<String> = r.watched_channels.iter().cloned().collect();
+            (r.config.bot_token.clone(), channels)
+        };
+        if channels.is_empty() {
+            return;
+        }
+        // disconnect が二度通っても投稿は一度きりにする
+        self.inner.write().await.startup_announced = false;
+
+        let text = format!(":zzz: {} が Waigaya の監視を終了しました", startup_identity());
+        let posts = channels.iter().map(|channel| {
+            let bot_token = bot_token.as_str();
+            let text = text.as_str();
+            async move {
+                (
+                    channel.clone(),
+                    Self::post_message(bot_token, channel, text).await,
+                )
+            }
+        });
+
+        match tokio::time::timeout(
+            SHUTDOWN_NOTICE_TIMEOUT,
+            futures_util::future::join_all(posts),
+        )
+        .await
+        {
+            Ok(results) => {
+                for (channel, result) in results {
+                    match result {
+                        Ok(_) => log::info!("終了通知を投稿: ch={}", channel),
+                        Err(e) => log::warn!("終了通知の投稿に失敗: ch={} {}", channel, e),
+                    }
+                }
+            }
+            Err(_) => log::warn!("終了通知の投稿がタイムアウトしました（終了を優先）"),
+        }
+    }
+
     /// 起動通知を監視チャンネル全部に投稿し、それが Events API 経由で戻ってくるか確かめる。
     /// chat.postMessage が通っても Event Subscriptions が切られていればイベントは戻ってこない。
     /// 投稿（Web API）と受信（Events API）は別経路なので、両方を通して初めて疎通と言える。
@@ -1619,6 +1674,7 @@ impl SlackClientState {
         if posted == 0 {
             return;
         }
+        inner.write().await.startup_announced = true;
 
         tokio::time::sleep(STARTUP_PROBE_TIMEOUT).await;
 
