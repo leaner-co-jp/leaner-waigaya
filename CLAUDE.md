@@ -67,7 +67,7 @@ Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Contr
 - **Auto-updater**: GitHub Releases の `latest.json` をエンドポイントとして自動更新。ビルド時は minisign 秘密鍵が必要（`tauri signer generate` で生成）。`ControlApp.tsx` が起動時にチェックし、更新があれば**同意を求めずダウンロード・適用して自動で再起動する**（古いバージョンが残ると多重起動の検知など新しい診断が効かないため）。失敗時は起動を止めず、バナーと再試行ボタンを出す
 - **ポート固定**: Vite は `1420` をstrict使用。`tauri:dev` 前に他プロセスが占有していると起動失敗する
 - **HMRポート**: Vite HMR はポート `1421` も使用する（`vite.config.ts` で設定）
-- **データ保存先**: 設定・ユーザー・絵文字データは `~/Library/Application Support/jp.co.leaner.waigaya/` に保存（`slack-config.json`, `users.json`, `emojis.json`）
+- **データ保存先**: 設定・ユーザー・絵文字データは `~/Library/Application Support/jp.co.leaner.waigaya/` に保存（`slack-config.json`, `users.json`, `emojis.json`, `window-state.json`）。displayウィンドウの幅・高さは `lib.rs` の `watch_display_window_size` が `Resized` イベントを500msデバウンスして保存し、起動時に復元する
 - **Viteマルチエントリ**: `control.html` と `display.html` が別エントリ。`vite.config.ts` の `rollupOptions.input` で管理
 - **`_queueAction` フラグ**: `SlackMessage._queueAction` はフロントエンド内部用（TextQueueへの追加指示）。Slack API由来ではない
 - **絵文字変換**: `emoji-converter.ts` の出力は HTML文字列。インナーHTMLとして描画するため、Slack API以外の入力を渡さないこと

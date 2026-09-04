@@ -6,6 +6,13 @@ use std::sync::Mutex;
 
 use crate::slack_client::SlackConfig;
 
+/// displayウィンドウのサイズ（論理ピクセル）
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct WindowState {
+    pub width: f64,
+    pub height: f64,
+}
+
 /// ストレージ管理の状態
 pub struct StorageState {
     pub app_data_dir: PathBuf,
@@ -48,6 +55,36 @@ impl StorageState {
     /// 絵文字データファイルのパスを取得
     pub fn emojis_path(&self) -> PathBuf {
         self.app_data_dir.join("emojis.json")
+    }
+
+    /// ウィンドウ状態ファイルのパスを取得
+    fn window_state_path(&self) -> PathBuf {
+        self.app_data_dir.join("window-state.json")
+    }
+
+    /// displayウィンドウのサイズを保存
+    pub fn save_window_state(&self, state: &WindowState) -> Result<(), String> {
+        let json = serde_json::to_string_pretty(state)
+            .map_err(|e| format!("JSON変換エラー: {}", e))?;
+        fs::write(self.window_state_path(), json)
+            .map_err(|e| format!("ウィンドウ状態保存エラー: {}", e))?;
+        log::info!("ウィンドウ状態を保存しました: {}x{}", state.width, state.height);
+        Ok(())
+    }
+
+    /// displayウィンドウのサイズを読み込み（未保存なら None）
+    pub fn load_window_state(&self) -> Option<WindowState> {
+        let path = self.window_state_path();
+        if !path.exists() {
+            return None;
+        }
+        let content = fs::read_to_string(&path).ok()?;
+        let state: WindowState = serde_json::from_str(&content).ok()?;
+        // 壊れた値で見えないウィンドウを作らないよう下限を設ける
+        if state.width < 100.0 || state.height < 100.0 {
+            return None;
+        }
+        Some(state)
     }
 
     /// 設定を保存

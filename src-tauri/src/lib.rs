@@ -3,7 +3,62 @@ mod slack_client;
 mod storage;
 
 use commands::{config, slack};
-use tauri::Manager;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+use tauri::{LogicalSize, Manager, WindowEvent};
+
+/// displayウィンドウのサイズ変更を監視し、落ち着いたら保存する
+fn watch_display_window_size(app: &tauri::App) {
+    let Some(display) = app.get_webview_window("display") else {
+        log::warn!("displayウィンドウが見つからないためサイズ保存を無効化");
+        return;
+    };
+
+    // 保存済みのサイズがあれば復元
+    if let Some(state) = app.state::<storage::StorageState>().load_window_state() {
+        if let Err(e) = display.set_size(LogicalSize::new(state.width, state.height)) {
+            log::warn!("ウィンドウサイズの復元に失敗: {}", e);
+        } else {
+            log::info!("ウィンドウサイズを復元: {}x{}", state.width, state.height);
+        }
+    }
+
+    // リサイズはドラッグ中に連発するので、最後のイベントから500ms待って1回だけ書く
+    let generation = Arc::new(AtomicU64::new(0));
+    let app_handle = app.handle().clone();
+    let window = display.clone();
+    display.on_window_event(move |event| {
+        let WindowEvent::Resized(size) = event else {
+            return;
+        };
+        let scale = window.scale_factor().unwrap_or(1.0);
+        let logical: LogicalSize<f64> = size.to_logical(scale);
+        // 最小化などで0になったサイズは記録しない
+        if logical.width < 1.0 || logical.height < 1.0 {
+            return;
+        }
+        let my_gen = generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let generation = generation.clone();
+        let app_handle = app_handle.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            if generation.load(Ordering::SeqCst) != my_gen {
+                return;
+            }
+            let state = storage::WindowState {
+                width: logical.width,
+                height: logical.height,
+            };
+            if let Err(e) = app_handle
+                .state::<storage::StorageState>()
+                .save_window_state(&state)
+            {
+                log::warn!("{}", e);
+            }
+        });
+    });
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -23,6 +78,8 @@ pub fn run() {
             // StorageStateの管理
             let storage_state = storage::StorageState::new(app_data_dir);
             app.manage(storage_state);
+
+            watch_display_window_size(app);
 
             log::info!("Leaner Waigaya 起動完了");
             Ok(())
