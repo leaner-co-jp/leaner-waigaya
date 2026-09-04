@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { SlackMessage, ReactionData, SlackReactionEvent, DisplayMessageImagesUpdate } from "../lib/types"
 import { tauriAPI } from "../lib/tauri-api"
@@ -14,6 +14,9 @@ export const DisplayWindow: React.FC = () => {
   const [messages, setMessages] = useState<DisplayMessage[]>([])
   const [channelName, setChannelName] = useState("waigaya")
   const [appVersion, setAppVersion] = useState("")
+  // 表示設定は親で1回だけ持つ。以前は MessageItem ごとに1秒間隔で localStorage を
+  // 読み直していたので、20件表示で毎秒20回の JSON.parse と再描画が走っていた。
+  const [displaySettings, setDisplaySettings] = useState<DisplaySettings>(getDisplaySettings())
 
   useEffect(() => {
     // 初期チャンネル名を取得
@@ -108,7 +111,7 @@ export const DisplayWindow: React.FC = () => {
 
     const cleanupSettingsListener = tauriAPI.onDisplaySettingsUpdate(
       () => {
-        setMessages((prev) => [...prev])
+        setDisplaySettings(getDisplaySettings())
       },
     )
 
@@ -140,7 +143,7 @@ export const DisplayWindow: React.FC = () => {
       <div className="flex flex-col overflow-hidden">
         <AnimatePresence>
           {messages.map((message) => (
-            <MessageItem key={message.id} message={message} />
+            <MessageItem key={message.id} message={message} displaySettings={displaySettings} />
           ))}
         </AnimatePresence>
       </div>
@@ -150,28 +153,23 @@ export const DisplayWindow: React.FC = () => {
 
 interface MessageItemProps {
   message: DisplayMessage
+  displaySettings: DisplaySettings
 }
 
-const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
-  const [displaySettings, setDisplaySettings] =
-    useState<DisplaySettings>(getDisplaySettings())
-
-  useEffect(() => {
-    const handleStorageChange = () => {
-      setDisplaySettings(getDisplaySettings())
-    }
-    window.addEventListener("storage", handleStorageChange)
-    const interval = setInterval(handleStorageChange, 1000)
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange)
-      clearInterval(interval)
-    }
-  }, [])
-
+const MessageItem: React.FC<MessageItemProps> = ({ message, displaySettings }) => {
   const bgColorWithAlpha = hexToRgba(
     displaySettings.backgroundColor,
     displaySettings.opacity,
+  )
+
+  // 絵文字と mrkdwn の変換は正規表現を6本通すので、テキストが変わらない限り再計算しない
+  const textHtml = useMemo(
+    () => (message.text ? emojiConverter.convertEmojisToReact(message.text) : ""),
+    [message.text],
+  )
+  const replyHtml = useMemo(
+    () => (message.replyToText ? emojiConverter.convertEmojisToReact(message.replyToText) : ""),
+    [message.replyToText],
   )
 
   const hasText = !!message.text
@@ -182,7 +180,6 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
 
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, transition: { duration: 0.2 } }}
@@ -200,7 +197,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
             className="text-xs truncate"
             style={{ color: displaySettings.textColor, maxWidth: "100%" }}
           >
-            <span className="text-xs">↩</span>「<span dangerouslySetInnerHTML={{ __html: emojiConverter.convertEmojisToReact(message.replyToText!) }} />」
+            <span className="text-xs">↩</span>「<span dangerouslySetInnerHTML={{ __html: replyHtml }} />」
           </div>
         </div>
       )}
@@ -224,9 +221,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
                 color: displaySettings.textColor,
               }}
               className="font-normal leading-snug tracking-tight"
-              dangerouslySetInnerHTML={{
-                __html: emojiConverter.convertEmojisToReact(message.text),
-              }}
+              dangerouslySetInnerHTML={{ __html: textHtml }}
             />
           )}
           {hasImages && (

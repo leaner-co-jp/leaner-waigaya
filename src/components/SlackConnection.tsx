@@ -118,7 +118,10 @@ export const SlackConnection: React.FC = () => {
       if (unlistenImagesReady) unlistenImagesReady()
       textQueue.clear()
     }
-  }, [addLog])
+    // addLog は useCallback([]) で不変。依存に入れると identity が変わった時に
+    // 再生中のキューが clear されるので、マウント時に1回だけ登録する。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ログ専用のTauriイベントリスナー（直接listenでReact Strict Mode対応）
   useEffect(() => {
@@ -180,7 +183,8 @@ export const SlackConnection: React.FC = () => {
       cancelled = true
       unlistenFns.forEach((fn) => fn())
     }
-  }, [addLog])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const loadSavedConfig = async () => {
     try {

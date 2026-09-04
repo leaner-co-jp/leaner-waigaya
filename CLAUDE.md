@@ -68,11 +68,15 @@ Slack WebSocket → Rust(`slack_client.rs`) → Tauriイベント emit → Contr
 - **ポート固定**: Vite は `1420` をstrict使用。`tauri:dev` 前に他プロセスが占有していると起動失敗する
 - **HMRポート**: Vite HMR はポート `1421` も使用する（`vite.config.ts` で設定）
 - **データ保存先**: 設定・ユーザー・絵文字データは `~/Library/Application Support/jp.co.leaner.waigaya/` に保存（`slack-config.json`, `users.json`, `emojis.json`, `window-state.json`）。displayウィンドウの幅・高さは `lib.rs` の `watch_display_window_size` が `Resized` イベントを500msデバウンスして保存し、起動時に復元する
+- **ユーザーキャッシュは4フィールドだけ**: `users.json` と Rust 側の `user_cache` は `CachedUser`（name / real_name / display_name / image）に絞って持つ。users.list の生データは1人2KB近くあり、983人で1.9MB → 絞ると約220KBになる。`CachedUser::from_json` は Slack の user オブジェクトも旧形式の users.json も読めるので、古いファイルが残っていてもそのまま起動できる。`set_local_users_data` は件数だけ返す（以前は JSON 丸ごと IPC に載せていた）
+- **画像はサムネイルを先頭に置かない**: Slack のサムネイル（`thumb_480` 等）はファイル共有イベントの後に非同期で生成されるため、イベント到着時点では取得できないことがある。取得順は `url_private_download → url_private → thumb_480 → thumb_360` で、失敗したら次の候補に落ちる。`TextQueue.attachImages` は画像本体をキューに残さず Display へ転送するだけ
+- **表示設定は DisplayWindow 親で1回だけ読む**: `display-settings-update` イベントで再読込して props で配る。`MessageItem` ごとに setInterval で localStorage を読み直す構成には戻さない
+- **設定ファイルの書き込みはアトミック**: `storage.rs` の `write_atomic` が一時ファイル → rename で差し替える。`fs::write` 直書きだと書き込み途中の強制終了でトークン入りの `slack-config.json` が壊れる
 - **Viteマルチエントリ**: `control.html` と `display.html` が別エントリ。`vite.config.ts` の `rollupOptions.input` で管理
 - **`_queueAction` フラグ**: `SlackMessage._queueAction` はフロントエンド内部用（TextQueueへの追加指示）。Slack API由来ではない
 - **絵文字変換**: `emoji-converter.ts` の出力は HTML文字列。インナーHTMLとして描画するため、Slack API以外の入力を渡さないこと
 - **外部URLを開く**: `openUrl` from `@tauri-apps/plugin-opener`（Rust側 `tauri-plugin-opener = "2"` と対応）
-- **Slack message subtype**: `message` タイプイベントには `bot_message`/`message_changed`/`message_deleted` 等のsubtypeがある。`SlackEvent` 構造体に `subtype: Option<String>` フィールドが必要
+- **Slack message subtype**: `message` タイプイベントには `bot_message`/`message_changed`/`message_deleted` 等のsubtypeがある。`SlackEvent` 構造体に `subtype: Option<String>` フィールドが必要。subtype 付きは原則スキップするが、**画像付き投稿には必ず `file_share` が付く**ので、これと `thread_broadcast` は通常投稿として通す。ここを一律スキップにすると画像が一切出なくなる（v1.4.0〜v1.5.1 で実際に起きていた）
 - **デバッグログ経路**: Rust → フロントエンドのデバッグ情報は `socket-mode-debug`（String payload）イベント経由でLogViewerに届く
 - **受信ループを止めない**: Socket Mode の受信ループは ACK と Pong の送信だけを担当し、イベント本体の処理（`users.info` / `conversations.replies` / 画像取得）は mpsc 経由でワーカータスクに渡す。受信ループで Slack Web API を待つと（`HTTP_TIMEOUT` は30秒）後続イベントの ACK と Ping への Pong が遅れ、Slack 側で配信失敗と数えられる。ワーカーは再接続をまたいで1本だけなのでメッセージの到着順は保たれる。ヘルスチェックの `auth.test` も同じ理由で `tokio::spawn` に逃がしている
 - **Enable Events が勝手にオフになる**: Slack は60分の間にイベント配信の95%以上が失敗すると Event Subscriptions を自動で無効化してメールを送る。Socket Mode は WebSocket 接続が1本もないとイベントを配信できないため、誰もアプリを起動していない時間帯が長いとこれだけでも無効化されうる（アプリの不具合とは限らない）。Event Subscriptions 画面の Delayed Events は、ダウンタイム中に取りこぼしたイベントを24時間かけて再配信する機能。有効にすると起動直後に何時間も前のメッセージが流れ出すため、このアプリではオフのままにする

@@ -50,6 +50,9 @@ pub struct SlackMessage {
     pub reply_to_text: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub images: Option<Vec<ImageData>>,
+    /// 画像を非同期取得中。テキストが空でもフロントのキューから捨てられないようにする
+    #[serde(rename = "hasPendingImages", default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_pending_images: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,6 +130,68 @@ pub struct CacheStatus {
     pub emojis: usize,
 }
 
+/// 表示に必要なユーザー情報だけを持つ。users.list の生データは1人あたり
+/// 2KB 近くあるが、実際に使うのは名前とアイコンだけなので絞って保持する。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CachedUser {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub real_name: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub image: String,
+}
+
+impl CachedUser {
+    /// Slack の user オブジェクト（users.list / users.info）と、旧形式・新形式の
+    /// users.json のどちらからも読めるようにしておく。
+    pub fn from_json(v: &serde_json::Value) -> Self {
+        let str_at = |v: &serde_json::Value, key: &str| -> String {
+            v.get(key).and_then(|x| x.as_str()).unwrap_or("").to_string()
+        };
+        let profile = v.get("profile");
+        let display_name = {
+            let flat = str_at(v, "display_name");
+            if !flat.is_empty() { flat } else { profile.map(|p| str_at(p, "display_name")).unwrap_or_default() }
+        };
+        let image = {
+            let flat = str_at(v, "image");
+            if !flat.is_empty() {
+                flat
+            } else if let Some(p) = profile {
+                let i72 = str_at(p, "image_72");
+                if !i72.is_empty() { i72 } else { str_at(p, "image_48") }
+            } else {
+                String::new()
+            }
+        };
+        Self {
+            name: str_at(v, "name"),
+            real_name: str_at(v, "real_name"),
+            display_name,
+            image,
+        }
+    }
+
+    fn unknown() -> Self {
+        Self { name: "unknown".to_string(), ..Default::default() }
+    }
+
+    /// 表示名（real_name → name の順）
+    pub fn label(&self) -> &str {
+        if !self.real_name.is_empty() { &self.real_name }
+        else if !self.name.is_empty() { &self.name }
+        else { "unknown" }
+    }
+
+    /// メンション展開用（display_name → real_name → name の順）
+    pub fn mention_label(&self) -> &str {
+        if !self.display_name.is_empty() { &self.display_name } else { self.label() }
+    }
+}
+
 // === Slack API レスポンス型 ===
 
 #[derive(Debug, Deserialize)]
@@ -187,6 +252,8 @@ struct UsersListResponse {
     ok: bool,
     #[serde(default)]
     members: Vec<serde_json::Value>,
+    #[serde(default)]
+    response_metadata: Option<ResponseMetadata>,
     #[serde(default)]
     error: Option<String>,
 }
@@ -408,7 +475,7 @@ struct SlackClientInner {
     config: SlackConfig,
     is_connected: bool,
     watched_channels: std::collections::HashSet<String>,
-    user_cache: HashMap<String, serde_json::Value>,
+    user_cache: HashMap<String, CachedUser>,
     custom_emoji_cache: HashMap<String, String>,
     current_channel_name: String,
     socket_cancel: Option<tokio::sync::watch::Sender<bool>>,
@@ -915,28 +982,43 @@ impl SlackClientState {
         }
 
         let client = http_client();
-        let resp = client
-            .get("https://slack.com/api/users.list")
-            .bearer_auth(&bot_token)
-            .send()
-            .await
-            .map_err(|e| format!("ユーザー一覧取得エラー: {}", e))?;
+        let mut user_cache: HashMap<String, CachedUser> = HashMap::new();
+        let mut cursor = String::new();
 
-        let result: UsersListResponse = resp
-            .json()
-            .await
-            .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
+        // users.list は大きなワークスペースだと1回で返り切らないのでカーソルで回す
+        loop {
+            let mut params = vec![("limit", "200")];
+            if !cursor.is_empty() {
+                params.push(("cursor", &cursor));
+            }
+            let resp = client
+                .get("https://slack.com/api/users.list")
+                .bearer_auth(&bot_token)
+                .query(&params)
+                .send()
+                .await
+                .map_err(|e| format!("ユーザー一覧取得エラー: {}", e))?;
 
-        if !result.ok {
-            return Err(format!("APIエラー: {}", result.error.unwrap_or_default()));
-        }
+            let result: UsersListResponse = resp
+                .json()
+                .await
+                .map_err(|e| format!("レスポンス解析エラー: {}", e))?;
 
-        let mut user_cache = HashMap::new();
-        for member in &result.members {
-            if let Some(id) = member.get("id").and_then(|v| v.as_str()) {
-                if member.get("profile").is_some() {
-                    user_cache.insert(id.to_string(), member.clone());
+            if !result.ok {
+                return Err(format!("APIエラー: {}", result.error.unwrap_or_default()));
+            }
+
+            for member in &result.members {
+                if let Some(id) = member.get("id").and_then(|v| v.as_str()) {
+                    if member.get("profile").is_some() {
+                        user_cache.insert(id.to_string(), CachedUser::from_json(member));
+                    }
                 }
+            }
+
+            match result.response_metadata {
+                Some(meta) if !meta.next_cursor.is_empty() => cursor = meta.next_cursor,
+                _ => break,
             }
         }
 
@@ -949,51 +1031,6 @@ impl SlackClientState {
 
         log::info!("ユーザー情報を一括取得: {}件", count);
         Ok((count, users_json))
-    }
-
-    #[allow(dead_code)]
-    pub async fn get_user_info(&self, user_id: &str) -> serde_json::Value {
-        // キャッシュから取得
-        {
-            let inner = self.inner.read().await;
-            if let Some(user) = inner.user_cache.get(user_id) {
-                return user.clone();
-            }
-        }
-
-        // APIから取得
-        let inner = self.inner.read().await;
-        let bot_token = inner.config.bot_token.clone();
-        drop(inner);
-
-        if bot_token.is_empty() {
-            return serde_json::json!({"name": "unknown", "profile": {}});
-        }
-
-        let client = http_client();
-        let resp = client
-            .get("https://slack.com/api/users.info")
-            .bearer_auth(&bot_token)
-            .query(&[("user", user_id)])
-            .send()
-            .await;
-
-        match resp {
-            Ok(r) => {
-                if let Ok(result) = r.json::<UsersInfoResponse>().await {
-                    if let Some(user) = result.user {
-                        // キャッシュに保存
-                        self.inner.write().await.user_cache.insert(user_id.to_string(), user.clone());
-                        return user;
-                    }
-                }
-            }
-            Err(e) => {
-                log::error!("ユーザー情報取得エラー: {}", e);
-            }
-        }
-
-        serde_json::json!({"name": "unknown", "profile": {}})
     }
 
     pub async fn get_users_count(&self) -> usize {
@@ -1093,7 +1130,7 @@ impl SlackClientState {
             let mut inner = self.inner.write().await;
             inner.user_cache.clear();
             for (k, v) in obj {
-                inner.user_cache.insert(k.clone(), v.clone());
+                inner.user_cache.insert(k.clone(), CachedUser::from_json(v));
             }
             log::info!("ローカルユーザーデータを設定: {}件", inner.user_cache.len());
         }
@@ -1702,15 +1739,18 @@ impl SlackClientState {
             conn_note
         );
 
+        // 直列だとチャンネル数 × 最大30秒待つことになるので、終了通知と同じく並列に投げる
+        let posts = channels.iter().map(|channel| {
+            let text = text.as_str();
+            async move { (channel.clone(), Self::post_message(bot_token, channel, text).await) }
+        });
+        let results = futures_util::future::join_all(posts).await;
+
         let mut posted = 0usize;
-        for channel in &channels {
-            match Self::post_message(bot_token, channel, &text).await {
+        for (channel, result) in results {
+            match result {
                 Ok(ts) => {
-                    inner
-                        .write()
-                        .await
-                        .startup_probe
-                        .insert((channel.clone(), ts));
+                    inner.write().await.startup_probe.insert((channel, ts));
                     posted += 1;
                 }
                 Err(msg) => {
@@ -1836,11 +1876,7 @@ impl SlackClientState {
                         let reaction_name = event.reaction.clone().unwrap_or_default();
                         let user_id = event.user.clone().unwrap_or_default();
                         let user_info = Self::fetch_user_info_static(bot_token, &user_id, inner).await;
-                        let user_name = user_info.get("real_name")
-                            .or_else(|| user_info.get("name"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("unknown")
-                            .to_string();
+                        let user_name = user_info.label().to_string();
                         let message_ts = item.ts.clone().unwrap_or_default();
 
                         let reaction_event = SlackReactionEvent {
@@ -1881,8 +1917,15 @@ impl SlackClientState {
                     );
                 }
             }
-            // subtypeがある場合はスキップ（bot_message, message_changed等）
-            if let Some(ref st) = event.subtype {
+            // subtype 付きは基本スキップ（bot_message, message_changed, message_deleted 等）。
+            // ただし画像付き投稿には必ず file_share が付き、スレッドの「チャンネルにも投稿」
+            // には thread_broadcast が付く。どちらも人の通常投稿なので通す。
+            let passthrough_subtype = matches!(
+                event.subtype.as_deref(),
+                None | Some("file_share") | Some("thread_broadcast")
+            );
+            if !passthrough_subtype {
+                let st = event.subtype.as_deref().unwrap_or("");
                 let _ = app_handle.emit("socket-mode-debug", format!(
                     "message スキップ: subtype={} ch={}", st, channel_str
                 ));
@@ -1899,16 +1942,8 @@ impl SlackClientState {
 
                     // ユーザー情報を取得
                     let user_info = Self::fetch_user_info_static(bot_token, &user_id, inner).await;
-                    let user_name = user_info.get("real_name")
-                        .or_else(|| user_info.get("name"))
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("unknown")
-                        .to_string();
-                    let user_icon = user_info.get("profile")
-                        .and_then(|p| p.get("image_72").or_else(|| p.get("image_48")))
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
+                    let user_name = user_info.label().to_string();
+                    let user_icon = user_info.image.clone();
 
                     // スレッド返信の親メッセージ情報を取得
                     let thread_ts = event.thread_ts.clone();
@@ -1918,11 +1953,7 @@ impl SlackClientState {
                             if let Some((parent_user_id, parent_text)) = Self::fetch_parent_message_static(bot_token, channel, tts).await {
                                 // 親メッセージのユーザー名を解決
                                 let parent_user_info = Self::fetch_user_info_static(bot_token, &parent_user_id, inner).await;
-                                let parent_user_name = parent_user_info.get("real_name")
-                                    .or_else(|| parent_user_info.get("name"))
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("unknown")
-                                    .to_string();
+                                let parent_user_name = parent_user_info.label().to_string();
                                 let parent_text = Self::resolve_mentions(&parent_text, bot_token, inner).await;
                                 (Some(parent_user_name), Some(parent_text))
                             } else {
@@ -1936,28 +1967,28 @@ impl SlackClientState {
                     };
 
                     // 画像URLを収集（取得はバックグラウンドで非同期）
-                    let mut image_jobs: Vec<(String, String, Option<String>)> = Vec::new();
+                    // 各ファイルについて候補URLを順に持つ。サムネイルは Slack 側で非同期に
+                    // 生成されるためイベント到着時点ではまだ無いことがあり、先頭に置くと
+                    // 取れない。原寸を先に、失敗したら順に次の候補を試す。
+                    let mut image_jobs: Vec<(Vec<String>, String, Option<String>)> = Vec::new();
                     if let Some(files) = &event.files {
                         for file in files {
                             let mime = file.mimetype.as_deref().unwrap_or("");
                             if !mime.starts_with("image/") {
                                 continue;
                             }
-                            let url = [
+                            let candidates: Vec<String> = [
                                 file.url_private_download.as_deref(),
+                                file.url_private.as_deref(),
                                 file.thumb_480.as_deref(),
                                 file.thumb_360.as_deref(),
-                                file.url_private.as_deref(),
                             ]
                             .into_iter()
                             .flatten()
-                            .next();
-                            if let Some(url) = url {
-                                image_jobs.push((
-                                    url.to_string(),
-                                    mime.to_string(),
-                                    file.name.clone(),
-                                ));
+                            .map(str::to_string)
+                            .collect();
+                            if !candidates.is_empty() {
+                                image_jobs.push((candidates, mime.to_string(), file.name.clone()));
                             }
                         }
                     }
@@ -1977,6 +2008,7 @@ impl SlackClientState {
                             reply_to_user,
                             reply_to_text,
                             images: None,
+                            has_pending_images,
                         };
 
                         if let Err(e) = app_handle.emit("add-to-text-queue", &message) {
@@ -1999,19 +2031,20 @@ impl SlackClientState {
                                     IMAGE_FETCH_TIMEOUT,
                                     async {
                                         let mut image_list = Vec::new();
-                                        for (url, mime, name) in image_jobs {
-                                            if let Some(data_url) =
-                                                SlackClientState::fetch_image_as_data_url(
-                                                    &bot_token_spawn,
-                                                    &url,
-                                                    &mime,
-                                                )
-                                                .await
-                                            {
-                                                image_list.push(ImageData {
-                                                    data_url,
-                                                    name,
-                                                });
+                                        for (candidates, mime, name) in image_jobs {
+                                            for url in &candidates {
+                                                if let Some(data_url) =
+                                                    SlackClientState::fetch_image_as_data_url(
+                                                        &bot_token_spawn,
+                                                        url,
+                                                        &mime,
+                                                    )
+                                                    .await
+                                                {
+                                                    image_list.push(ImageData { data_url, name });
+                                                    break;
+                                                }
+                                                log::warn!("画像取得に失敗、次の候補を試す: {}", &url[..url.len().min(80)]);
                                             }
                                         }
                                         image_list
@@ -2048,7 +2081,7 @@ impl SlackClientState {
         bot_token: &str,
         user_id: &str,
         inner: &Arc<RwLock<SlackClientInner>>,
-    ) -> serde_json::Value {
+    ) -> CachedUser {
         // キャッシュから取得
         {
             let read = inner.read().await;
@@ -2058,7 +2091,7 @@ impl SlackClientState {
         }
 
         if bot_token.is_empty() || user_id.is_empty() {
-            return serde_json::json!({"name": "unknown", "profile": {}});
+            return CachedUser::unknown();
         }
 
         let resp = http_client()
@@ -2072,8 +2105,9 @@ impl SlackClientState {
             Ok(r) => {
                 if let Ok(result) = r.json::<UsersInfoResponse>().await {
                     if let Some(user) = result.user {
-                        inner.write().await.user_cache.insert(user_id.to_string(), user.clone());
-                        return user;
+                        let cached = CachedUser::from_json(&user);
+                        inner.write().await.user_cache.insert(user_id.to_string(), cached.clone());
+                        return cached;
                     }
                 }
             }
@@ -2082,7 +2116,7 @@ impl SlackClientState {
             }
         }
 
-        serde_json::json!({"name": "unknown", "profile": {}})
+        CachedUser::unknown()
     }
 
     /// スレッドの親メッセージを取得（static版、Socket Modeタスク内で使用）
@@ -2136,56 +2170,86 @@ impl SlackClientState {
         bot_token: &str,
         inner: &Arc<RwLock<SlackClientInner>>,
     ) -> String {
-        let re = regex::Regex::new(r"<@(U[A-Z0-9]+)(?:\|[^>]*)?>").unwrap();
-        let mut result = text.to_string();
+        let re = mention_regex();
+        if !re.is_match(text) {
+            return text.to_string();
+        }
 
-        // マッチするユーザーIDを収集（重複排除）
-        let user_ids: Vec<String> = {
-            let mut ids = Vec::new();
-            for cap in re.captures_iter(text) {
-                if let Some(m) = cap.get(1) {
-                    let id = m.as_str().to_string();
-                    if !ids.contains(&id) {
-                        ids.push(id);
-                    }
+        // マッチするユーザーIDを収集（重複排除、出現順）
+        let mut user_ids: Vec<String> = Vec::new();
+        for cap in re.captures_iter(text) {
+            if let Some(m) = cap.get(1) {
+                let id = m.as_str();
+                if !user_ids.iter().any(|x| x == id) {
+                    user_ids.push(id.to_string());
                 }
             }
-            ids
-        };
+        }
 
+        let mut names: HashMap<String, String> = HashMap::new();
         for user_id in user_ids {
             let user_info = Self::fetch_user_info_static(bot_token, &user_id, inner).await;
-            let display_name = user_info.get("profile")
-                .and_then(|p| p.get("display_name"))
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .or_else(|| user_info.get("real_name").and_then(|v| v.as_str()))
-                .or_else(|| user_info.get("name").and_then(|v| v.as_str()))
-                .unwrap_or("unknown");
-
-            // HTMLエスケープ
-            let escaped_name = display_name
+            let escaped = user_info
+                .mention_label()
                 .replace('&', "&amp;")
                 .replace('<', "&lt;")
                 .replace('>', "&gt;")
                 .replace('"', "&quot;");
-
-            // <@UXXXXX> と <@UXXXXX|name> の両方を置換
-            let pattern = format!(r"<@{}(?:\|[^>]*)?>", regex::escape(&user_id));
-            if let Ok(re_user) = regex::Regex::new(&pattern) {
-                result = re_user.replace_all(
-                    &result,
-                    format!(r#"<span class="slack-mention">@{}</span>"#, escaped_name),
-                ).to_string();
-            }
+            names.insert(user_id, escaped);
         }
 
-        result
+        // 1回の走査で <@UXXXXX> と <@UXXXXX|name> をまとめて置換する
+        re.replace_all(text, |cap: &regex::Captures| {
+            let id = &cap[1];
+            match names.get(id) {
+                Some(name) => format!(r#"<span class="slack-mention">@{}</span>"#, name),
+                None => cap[0].to_string(),
+            }
+        })
+        .into_owned()
     }
+}
+
+/// メンション検出用の正規表現。毎メッセージでコンパイルし直さないよう1回だけ作る。
+fn mention_regex() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"<@(U[A-Z0-9]+)(?:\|[^>]*)?>").unwrap())
 }
 
 #[cfg(test)]
 mod tests {
+    use super::CachedUser;
+
+    #[test]
+    fn cached_user_reads_slack_user_object() {
+        let v = serde_json::json!({
+            "id": "U1", "name": "taro", "real_name": "Taro Yamada",
+            "profile": { "display_name": "たろう", "image_72": "https://x/72.png", "image_48": "https://x/48.png" }
+        });
+        let u = CachedUser::from_json(&v);
+        assert_eq!(u.label(), "Taro Yamada");
+        assert_eq!(u.mention_label(), "たろう");
+        assert_eq!(u.image, "https://x/72.png");
+    }
+
+    #[test]
+    fn cached_user_reads_slim_users_json() {
+        // 新形式の users.json（絞った4フィールド）もそのまま読める
+        let v = serde_json::json!({
+            "name": "taro", "real_name": "", "display_name": "", "image": "https://x/72.png"
+        });
+        let u = CachedUser::from_json(&v);
+        assert_eq!(u.label(), "taro");
+        assert_eq!(u.mention_label(), "taro");
+        assert_eq!(u.image, "https://x/72.png");
+    }
+
+    #[test]
+    fn cached_user_falls_back_to_image_48() {
+        let v = serde_json::json!({ "name": "x", "profile": { "image_48": "https://x/48.png" } });
+        assert_eq!(CachedUser::from_json(&v).image, "https://x/48.png");
+    }
+
     #[tokio::test]
     async fn abort_terminates_spawned_task() {
         let handle = tokio::spawn(async {

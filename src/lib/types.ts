@@ -37,6 +37,8 @@ export interface SlackMessage {
   replyToUser?: string;
   replyToText?: string;
   images?: ImageData[];
+  /** 画像を非同期取得中。テキストが空でもキューから捨てないための印（Rust が付ける） */
+  hasPendingImages?: boolean;
 }
 
 export interface MessageImagesReady {

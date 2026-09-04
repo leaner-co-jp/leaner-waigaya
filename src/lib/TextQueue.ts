@@ -71,9 +71,8 @@ export class TextQueue {
       return;
     }
 
-    this.queue[idx] = { ...this.queue[idx], images };
-    this.updateUI();
-
+    // 画像本体（base64）はキューに溜めず Display へ渡すだけにする。
+    // 溜めると最大50件ぶんの data URL が Control 側に居座り続ける。
     if (this.onImagesUpdated) {
       this.onImagesUpdated({ channel, timestamp: slackTs, images });
       console.log('📷 画像をDisplayへ追送:', { channel, slackTs });
@@ -123,7 +122,9 @@ export class TextQueue {
   addSlackMessage(messageData: SlackMessage): void {
     const hasText = messageData.text && messageData.text.trim();
     const hasImages = messageData.images && messageData.images.length > 0;
-    if (hasText || hasImages) {
+    // 画像だけの投稿はテキスト空で先に届き、画像は message-images-ready で追送される。
+    // ここで捨てると追送の差し込み先が無くなるので、取得中フラグが立っていれば通す。
+    if (hasText || hasImages || messageData.hasPendingImages) {
       const queueItem: QueueItem = {
         id: Date.now(),
         text: hasText ? messageData.text.trim() : '',

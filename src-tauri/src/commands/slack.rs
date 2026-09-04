@@ -236,6 +236,8 @@ pub async fn get_emojis_last_updated(
 pub struct LocalDataResult {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -250,22 +252,27 @@ pub async fn set_local_users_data(
         Ok(data) => {
             if let Some(obj) = data.as_object() {
                 if !obj.is_empty() {
-                    slack.set_local_users_data(data.clone()).await;
+                    // 呼び出し側は件数しか使わない。users.json を丸ごと IPC に載せない
+                    let count = obj.len();
+                    slack.set_local_users_data(data).await;
                     return Ok(LocalDataResult {
                         success: true,
-                        data: Some(data),
+                        count: Some(count),
+                        data: None,
                         error: None,
                     });
                 }
             }
             Ok(LocalDataResult {
                 success: false,
+                count: None,
                 data: None,
                 error: Some("No local user data found.".to_string()),
             })
         }
         Err(e) => Ok(LocalDataResult {
             success: false,
+            count: None,
             data: None,
             error: Some(e),
         }),
@@ -287,6 +294,7 @@ pub async fn set_local_emojis_data(
                     let _ = app_handle.emit("custom-emojis-data", &data);
                     return Ok(LocalDataResult {
                         success: true,
+                        count: None,
                         data: Some(data),
                         error: None,
                     });
@@ -294,12 +302,14 @@ pub async fn set_local_emojis_data(
             }
             Ok(LocalDataResult {
                 success: false,
+                count: None,
                 data: None,
                 error: Some("No local emoji data found.".to_string()),
             })
         }
         Err(e) => Ok(LocalDataResult {
             success: false,
+            count: None,
             data: None,
             error: Some(e),
         }),

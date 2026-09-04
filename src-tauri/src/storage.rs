@@ -34,6 +34,14 @@ struct StoredConfig {
     watched_channel_data: HashMap<String, crate::slack_client::SlackChannel>,
 }
 
+/// 一時ファイルに書いてから rename で差し替える。書き込み途中でクラッシュしても
+/// 元のファイル（トークンや設定）が半端な状態で残らない。
+fn write_atomic(path: &std::path::Path, content: &str) -> std::io::Result<()> {
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, content)?;
+    fs::rename(&tmp, path)
+}
+
 impl StorageState {
     pub fn new(app_data_dir: PathBuf) -> Self {
         Self {
@@ -66,7 +74,7 @@ impl StorageState {
     pub fn save_window_state(&self, state: &WindowState) -> Result<(), String> {
         let json = serde_json::to_string_pretty(state)
             .map_err(|e| format!("JSON変換エラー: {}", e))?;
-        fs::write(self.window_state_path(), json)
+        write_atomic(&self.window_state_path(), &json)
             .map_err(|e| format!("ウィンドウ状態保存エラー: {}", e))?;
         log::info!("ウィンドウ状態を保存しました: {}x{}", state.width, state.height);
         Ok(())
@@ -99,7 +107,7 @@ impl StorageState {
         let json = serde_json::to_string_pretty(&stored)
             .map_err(|e| format!("JSON変換エラー: {}", e))?;
 
-        fs::write(self.config_path(), json)
+        write_atomic(&self.config_path(), &json)
             .map_err(|e| format!("設定保存エラー: {}", e))?;
 
         // キャッシュを更新
@@ -145,7 +153,7 @@ impl StorageState {
     pub fn save_users_data(&self, data: &serde_json::Value) -> Result<(), String> {
         let json = serde_json::to_string_pretty(data)
             .map_err(|e| format!("JSON変換エラー: {}", e))?;
-        fs::write(self.users_path(), json)
+        write_atomic(&self.users_path(), &json)
             .map_err(|e| format!("ユーザーデータ保存エラー: {}", e))?;
         log::info!("ユーザーデータを保存しました");
         Ok(())
@@ -167,7 +175,7 @@ impl StorageState {
     pub fn save_emojis_data(&self, data: &serde_json::Value) -> Result<(), String> {
         let json = serde_json::to_string_pretty(data)
             .map_err(|e| format!("JSON変換エラー: {}", e))?;
-        fs::write(self.emojis_path(), json)
+        write_atomic(&self.emojis_path(), &json)
             .map_err(|e| format!("絵文字データ保存エラー: {}", e))?;
         log::info!("絵文字データを保存しました");
         Ok(())
